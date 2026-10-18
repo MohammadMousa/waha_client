@@ -8,6 +8,7 @@ import android.hardware.usb.UsbConstants
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import com.felhr.usbserial.UsbSerialDevice
+import java.io.File
 
 // Passive, read-only snapshot of everything USB the kiosk can see. Touches
 // nothing: no permission requests, no connections, no Geidea state. Exists to
@@ -75,7 +76,10 @@ object UsbInventory {
                     usb.hasPermission(d), serial, names, ifaces,
                 ),
             )
-            if (serial) appendInterfaceDetail(sb, d)
+            if (serial) {
+                appendInterfaceDetail(sb, d)
+                appendPowerInfo(sb, d)
+            }
         }
         sb.append(
             if (sdkPick != null) "Geidea SDK would pick (first sdkSerial=true in list order): ${sdkPick.deviceName} " +
@@ -110,6 +114,42 @@ object UsbInventory {
                 ),
             )
         }
+    }
+
+    // Whether the tablet's kernel lets this port suspend when idle: the power
+    // control, autosuspend delay and current runtime status of the terminal's
+    // USB device. Read-only, a few tiny files; if the system hides them the
+    // line just says so.
+    private fun appendPowerInfo(sb: StringBuilder, d: UsbDevice) {
+        try {
+            val m = Regex("/dev/bus/usb/(\\d+)/(\\d+)").matchEntire(d.deviceName) ?: return
+            val bus = m.groupValues[1].toInt()
+            val dev = m.groupValues[2].toInt()
+            val nodes = File("/sys/bus/usb/devices").listFiles()
+            if (nodes == null) {
+                sb.append("      power: /sys/bus/usb/devices not readable\n")
+                return
+            }
+            val node = nodes.firstOrNull { readSys(File(it, "busnum")) == bus.toString() && readSys(File(it, "devnum")) == dev.toString() }
+            if (node == null) {
+                sb.append("      power: no sysfs entry found for this device\n")
+                return
+            }
+            val p = File(node, "power")
+            sb.append(
+                "      power (sysfs ${node.name}): control=${readSys(File(p, "control"))} " +
+                    "autosuspend_delay_ms=${readSys(File(p, "autosuspend_delay_ms"))} " +
+                    "runtime_status=${readSys(File(p, "runtime_status"))}\n",
+            )
+        } catch (_: Throwable) {
+            sb.append("      power: not readable\n")
+        }
+    }
+
+    private fun readSys(f: File): String = try {
+        f.readText().trim().ifEmpty { "?" }
+    } catch (_: Throwable) {
+        "?"
     }
 
     // The exact rule the SDK uses (UsbService.a -> UsbSerialDevice.isSupported).

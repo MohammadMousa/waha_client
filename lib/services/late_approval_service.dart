@@ -78,6 +78,7 @@ class LateApprovalService {
 
   /// Every 10 s, at most 40 tries (about 7 minutes): longer than the server's
   /// default limit, so an order is never given up on earlier than it must be.
+  /// The retry timer only runs while a report is waiting.
   static const retryEvery = Duration(seconds: 10);
   static const maxAttempts = 40;
 
@@ -85,11 +86,22 @@ class LateApprovalService {
   Timer? _timer;
   bool _busy = false;
 
-  /// Starts the retry check. Safe to call more than once.
+  /// Picks up reports saved before the last restart. Safe to call more than
+  /// once. Nothing runs when nothing is waiting.
   void start(ApiClient api) {
     _api = api;
-    _timer ??= Timer.periodic(retryEvery, (_) => unawaited(flush()));
+    if (LocalPrefs.lateApprovals.isEmpty) return;
+    _ensureTimer();
     unawaited(flush());
+  }
+
+  void _ensureTimer() {
+    _timer ??= Timer.periodic(retryEvery, (_) => unawaited(flush()));
+  }
+
+  void _stopTimer() {
+    _timer?.cancel();
+    _timer = null;
   }
 
   /// Records the approval and tries to send it at once.
@@ -119,6 +131,7 @@ class LateApprovalService {
       await LocalPrefs.setLateApprovals(list);
     }
     TraceLog.log('LATE APPROVAL: order $orderId, $amount, rrn ${entry.rrn} — reporting to the server');
+    _ensureTimer();
     await flush();
   }
 
@@ -126,7 +139,10 @@ class LateApprovalService {
     final api = _api;
     if (api == null || _busy) return;
     final raw = LocalPrefs.lateApprovals;
-    if (raw.isEmpty) return;
+    if (raw.isEmpty) {
+      _stopTimer();
+      return;
+    }
     _busy = true;
     try {
       final keep = <String>[];
@@ -160,7 +176,14 @@ class LateApprovalService {
         }
         keep.add(jsonEncode(next.toJson()));
       }
+      // A report saved while this pass was sending is not in `raw`: keep it.
+      final sent = raw.map(LateApproval.tryParse).whereType<LateApproval>().map((e) => e.rrn).toSet();
+      for (final r in LocalPrefs.lateApprovals) {
+        final e = LateApproval.tryParse(r);
+        if (e != null && !sent.contains(e.rrn)) keep.add(r);
+      }
       await LocalPrefs.setLateApprovals(keep);
+      if (keep.isEmpty) _stopTimer();
     } finally {
       _busy = false;
     }
