@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:waha_kiosk/config/app_config.dart';
-import 'package:waha_kiosk/config/connection_settings.dart';
+import 'package:waha_client/config/app_config.dart';
+import 'package:waha_client/config/connection_settings.dart';
 
 void main() {
   group('apiBaseUrl precedence', () {

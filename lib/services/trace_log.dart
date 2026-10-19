@@ -1,61 +1,36 @@
-import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 
 import 'local_prefs.dart';
 
-/// Diagnostic-only, temporary: forwards Dart-side trace/error text into the
-/// SAME native waha_trace.log that MainActivity.logTrace() writes to (see
-/// MainActivity.kt and CrashLogActivity.kt) — one file, one "Waha Startup
-/// Log" screen, instead of a second separate log the user has to know to
-/// check. Reuses the existing 'com.waha/geidea' channel (channel identity
-/// is the string name, not object identity, so a second MethodChannel
-/// instance here is fine) rather than adding a new one.
+/// Lightweight event log for debugging, kept API-compatible with the kiosk
+/// app's TraceLog so call sites across the app (invoice flow, landing page
+/// refresh, etc.) didn't need to change. waha_client has no native
+/// diagnostic pipeline to write into (no device-local file, no kiosk
+/// support team reading it off a tablet), so this just prints to the
+/// console/devtools instead of crossing a platform channel.
 ///
-/// Gated end-to-end by LocalPrefs.loggingEnabled (false by default) — see
-/// that field's doc comment. [log] is cheap to call unconditionally: the
-/// native side checks the same flag before writing anything, so callers
-/// don't need to check it themselves first.
-///
-/// Remove once the startup crash is root-caused and fixed, alongside the
-/// rest of the trace-logging system.
+/// Gated by [LocalPrefs.effectiveLoggingEnabled], same as the kiosk app,
+/// so a server-side `enable_logging` property still has an effect in the
+/// browser/adb console.
 class TraceLog {
-  static const _channel = MethodChannel('com.waha/geidea');
-
   static Future<void> log(String label) async {
-    try {
-      await _channel.invokeMethod('logTrace', {'label': label});
-    } catch (_) {
-      // Best-effort only — never let logging itself throw.
-    }
+    if (!LocalPrefs.effectiveLoggingEnabled) return;
+    debugPrint('[trace] $label');
   }
 
-  /// Tells the native side the current effective on/off state, so its own
-  /// early onCreate/onStart lines (which fire before Dart code can run,
-  /// hence before this call) respect whatever was last known — persisted
-  /// natively, so it carries over from the previous launch. Call this once
-  /// at startup (see main.dart) and again whenever the Settings toggle
-  /// changes.
-  /// Pushes the current effective state — the local Settings switch OR the
-  /// dashboard property — to the native side.
-  static Future<void> applyEffective() =>
-      setEnabled(LocalPrefs.effectiveLoggingEnabled);
+  /// No native side to push the effective flag to — kept as a no-op so
+  /// call sites (main.dart, Settings) don't need special-casing.
+  static Future<void> applyEffective() async {}
 
-  /// Applies the organization's `enable_logging` property from a config the
-  /// server actually returned. An empty map means the request failed, so it
-  /// changes nothing — the last known dashboard value stays in force.
   static Future<void> applyRemoteConfig(Map<String, String> config) async {
     if (config.isEmpty) return;
     final on = config['enable_logging']?.trim().toLowerCase() == 'true';
     if (LocalPrefs.remoteLoggingEnabled != on) {
       await LocalPrefs.setRemoteLoggingEnabled(on);
     }
-    await applyEffective();
   }
 
   static Future<void> setEnabled(bool enabled) async {
-    try {
-      await _channel.invokeMethod('setLoggingEnabled', {'enabled': enabled});
-    } catch (_) {
-      // Best-effort only.
-    }
+    await LocalPrefs.setLoggingEnabled(enabled);
   }
 }

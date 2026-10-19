@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'settings_screen.dart';
+import '../widgets/server_connection_panel.dart';
 
 /// The Server Connection panel on its own screen, reachable before login
 /// (opened from the startup connection popup, which sits above the router's

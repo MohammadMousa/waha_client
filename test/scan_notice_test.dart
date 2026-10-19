@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:waha_kiosk/l10n/generated/app_localizations.dart';
-import 'package:waha_kiosk/router/app_router.dart';
-import 'package:waha_kiosk/utils/scan_actions.dart';
+import 'package:waha_client/l10n/generated/app_localizations.dart';
+import 'package:waha_client/router/app_router.dart';
+import 'package:waha_client/utils/scan_actions.dart';
 
 // Scanning unknown products must not stack dialogs, must be localized, and a
 // scan notice must not stop the idle timer (the idle guard follows

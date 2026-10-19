@@ -11,39 +11,24 @@ import 'l10n/generated/app_localizations.dart';
 import 'router/app_router.dart';
 import 'services/api_client.dart';
 import 'services/app_messenger.dart';
-import 'services/geidea_terminal_bridge.dart';
-import 'services/geidea_usb_activity_logger.dart';
 import 'services/app_info.dart';
 import 'services/local_prefs.dart';
-import 'services/auto_restart_service.dart';
-import 'services/heartbeat_service.dart';
-import 'services/late_approval_service.dart';
 import 'services/trace_log.dart';
-import 'services/usb_diagnostics.dart';
 import 'state/auth_service.dart';
 import 'state/browsing_mode_service.dart';
-import 'state/edit_mode_service.dart';
 import 'state/locale_service.dart';
 import 'state/order_flow_controller.dart';
 import 'state/permission_service.dart';
-import 'state/simulator_service.dart';
 import 'state/startup_connection.dart';
 import 'widgets/connection_gate_overlay.dart';
-import 'widgets/screen_scale.dart';
 import 'state/store_config_service.dart';
-import 'widgets/kiosk_idle_guard.dart';
 
 void main() {
   // Diagnostic-only: catches any uncaught Dart error anywhere in the app
   // (including ones Flutter's own FlutterError.onError below doesn't reach,
-  // e.g. inside a Future not awaited by the framework) and forwards it to
-  // the same native waha_trace.log MainActivity.logTrace() writes to — see
-  // TraceLog and CrashLogActivity. Previously the only logging in this app
-  // was native-side (USB/lifecycle events); a Flutter-level crash like a
-  // Navigator assertion left zero trace anywhere reachable without adb.
-  // Gated by LocalPrefs.loggingEnabled end-to-end (see its doc comment) —
-  // TraceLog.log is safe to call unconditionally either way. Remove once
-  // the startup crash is root-caused and fixed.
+  // e.g. inside a Future not awaited by the framework) and logs it to the
+  // console via TraceLog — see that file's doc comment for why there is no
+  // native log on this (web/Android/Linux customer) app.
   runZonedGuarded(() async {
     // Needed before touching any platform channel (SharedPreferences included)
     // pre-runApp.
@@ -64,21 +49,11 @@ void main() {
     await LocalPrefs.init();
     await AppInfo.init();
     await AppConfig.initConnection();
-    // Effective = dart-define seeds the persisted flag once on first run,
-    // then the Settings toggle is the durable control from then on (same
-    // pattern as the dart-define mode fallback below) — OR'd, same
-    // philosophy as GeideaTerminalBridge.fakeTerminalEnabled: a true
-    // dart-define is a floor the Settings toggle can't turn off, only add
-    // to. Tell the native side now so its own next-launch-onward early
-    // lines (before Dart can run) already know this value — see
-    // TraceLog.setEnabled's doc comment for the one-launch gap this can't
-    // close on a fresh install.
     const loggingDefine = bool.fromEnvironment('LOGGING');
     if (loggingDefine && !LocalPrefs.loggingEnabled) {
       await LocalPrefs.setLoggingEnabled(true);
     }
     unawaited(TraceLog.applyEffective());
-    AutoRestartService.instance.start();
     // One shared instance for the app's whole lifetime — not a fresh
     // ApiClient() per use. A separate instance would mean a separate
     // underlying http.Client with its own unwarmed connection pool, so the
@@ -91,16 +66,6 @@ void main() {
       apiClient.getConfig().catchError((_) => <String, String>{}),
     ); // fire-and-forget warm-up — pays the DNS/TCP/TLS cost now, not at checkout
     await _resolveStartupConfig(apiClient);
-    GeideaTerminalBridge.onLateApproval = (orderId, amount, r) =>
-        unawaited(LateApprovalService.instance.report(
-          orderId: orderId,
-          amount: amount,
-          rrn: r.rrn,
-          approvalCode: r.approvalCode,
-          terminalId: r.details['terminalId'] as String?,
-        ));
-    LateApprovalService.instance.start(apiClient);
-    HeartbeatService.instance.start(apiClient);
     runApp(WahaApp(apiClient: apiClient));
   }, (error, stack) {
     TraceLog.log('Uncaught zone error: $error\n$stack');
@@ -114,9 +79,11 @@ void main() {
 /// once applied (see below), so it becomes durable from that point on
 /// rather than needing to be re-supplied via --dart-define on every launch.
 Future<void> _resolveStartupConfig(ApiClient apiClient) async {
-  // Mode: URL override (web, ephemeral, never persisted) > persisted
-  // value (survives restart/reboot) > dart-define (first-run seed,
-  // becomes persisted from here on) > Kiosk (the constructed default).
+  // Mode: URL override (web, ephemeral, never persisted — the real-world
+  // entry into Shopping mode is a `?mode=shopping` link, typically from a
+  // kiosk's own QR code) > persisted value (survives restart) > dart-define
+  // (first-run seed, becomes persisted from here on) > Normal (the
+  // constructed default for this app).
   final urlMode = AppConfig.urlOverrideMode;
   if (urlMode != null) {
     browsingModeService.setMode(urlMode, persist: false);
@@ -129,7 +96,7 @@ Future<void> _resolveStartupConfig(ApiClient apiClient) async {
       if (defineMode != null) {
         browsingModeService.setMode(defineMode); // persists — becomes durable
       }
-      // else: stays at the BrowsingMode.kiosk it was constructed with.
+      // else: stays at whichever mode it was constructed with (Normal).
     }
   }
 
@@ -166,14 +133,13 @@ Future<void> _resolveStartupConfig(ApiClient apiClient) async {
 
   // Auth resolution — reuses the shared apiClient passed in (see main()'s
   // comment on why that matters for connection warming) rather than a
-  // throwaway instance. Implements the specified MVP flow exactly: try
-  // cached token, fall back to cached credentials, fall back to a fresh
-  // throwaway account for Shopping only. See AuthService.resolveStartupAuth
-  // for the full precedence and the failure/timeout handling. Awaited (not
-  // fire-and-forget) so the very first frame already reflects whether
-  // there's a session, rather than flashing a logged-out state for a
-  // moment first. Mode must already be resolved by this point — Shopping's
-  // auto-account behavior depends on it.
+  // throwaway instance. Try cached token, fall back to cached credentials,
+  // fall back to a fresh throwaway account for Shopping only. See
+  // AuthService.resolveStartupAuth for the full precedence and the
+  // failure/timeout handling. Awaited (not fire-and-forget) so the very
+  // first frame already reflects whether there's a session, rather than
+  // flashing a logged-out state for a moment first. Mode must already be
+  // resolved by this point — Shopping's auto-account behavior depends on it.
   // If the server can't be reached at all, don't sit through the slow
   // timeouts of every call below — show the "Connecting…" popup instead,
   // which retries on a growing schedule and finishes this sign-in once the
@@ -183,22 +149,6 @@ Future<void> _resolveStartupConfig(ApiClient apiClient) async {
     startupConnection.begin(apiClient, reachError);
   } else {
     await authService.resolveStartupAuth(apiClient, browsingModeService.mode);
-  }
-
-  // Geidea USB terminal (card-present payment) — Kiosk-only, matching
-  // payment_methods.available_modes for the 'terminal' row. Fire-and-forget:
-  // USB connection is inherently async/best-effort (the terminal may not be
-  // plugged in yet, or this may be a dev device with no hardware at all)
-  // and shouldn't block or fail app startup either way.
-  if (browsingModeService.mode == BrowsingMode.kiosk) {
-    unawaited(GeideaTerminalBridge.instance.initialize());
-    UsbDiagnostics.logSnapshot('app start');
-    // So the native log viewer can upload logs even when Flutter can't start.
-    unawaited(
-        GeideaTerminalBridge.instance.setApiBaseUrl(AppConfig.apiBaseUrl));
-    // Keep the native uploader pointed at whichever server is active now.
-    AppConfig.connection.addListener(() => unawaited(
-        GeideaTerminalBridge.instance.setApiBaseUrl(AppConfig.apiBaseUrl)));
   }
 }
 
@@ -217,8 +167,6 @@ class WahaApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (context) => OrderFlowController(context.read<ApiClient>()),
         ),
-        ChangeNotifierProvider(create: (_) => SimulatorService()),
-        ChangeNotifierProvider.value(value: editModeService),
         ChangeNotifierProvider.value(value: storeConfigService),
         ChangeNotifierProvider.value(value: browsingModeService),
         ChangeNotifierProvider.value(value: localeService),
@@ -231,46 +179,30 @@ class WahaApp extends StatelessWidget {
       child: Builder(
         builder: (context) {
           final locale = context.watch<LocaleService>().locale;
-          return GeideaUsbActivityLogger(
-            // Mounted once for the app's whole lifetime, wrapping
-            // MaterialApp itself — NOT per-route. See kiosk_idle_guard.dart's
-            // doc comment for why: a per-route instance let two guarded
-            // routes stacked on top of each other run two independent idle
-            // timers at once, a confirmed real cause of a black-screen
-            // crash. This single instance tracks the current route via
-            // KioskRouteObserver below and acts through navigatorKey.
-            child: KioskIdleGuard(
-              child: MaterialApp(
-                title: 'Waha Kiosk',
-                debugShowCheckedModeBanner: false,
-                theme: ThemeData(
-                  colorSchemeSeed: const Color(0xFF6B1A2A),
-                  useMaterial3: true,
-                ),
-                locale: locale,
-                supportedLocales: const [Locale('en'), Locale('ar')],
-                localizationsDelegates: const [
-                  AppLocalizations.delegate,
-                  GlobalMaterialLocalizations.delegate,
-                  GlobalWidgetsLocalizations.delegate,
-                  GlobalCupertinoLocalizations.delegate,
-                ],
-                scaffoldMessengerKey: rootScaffoldMessengerKey,
-                navigatorKey: navigatorKey,
-                navigatorObservers: [KioskRouteObserver()],
-                onGenerateRoute: onGenerateRoute,
-                // Covers every route while the server is unreachable at
-                // startup; needs no Overlay so it can sit above the Navigator.
-                builder: (context, child) => ScreenScale(
-                  child: ConnectionGateOverlay(
-                      child: child ?? const SizedBox.shrink()),
-                ),
-                initialRoute: Routes.landing,
-                // The simulator overlay is stacked per-route inside
-                // onGenerateRoute (it needs the Navigator's Overlay); only
-                // the overlay-free connection popup lives in `builder`.
-              ),
+          return MaterialApp(
+            title: 'Waha',
+            debugShowCheckedModeBanner: false,
+            theme: ThemeData(
+              colorSchemeSeed: const Color(0xFF6B1A2A),
+              useMaterial3: true,
             ),
+            locale: locale,
+            supportedLocales: const [Locale('en'), Locale('ar')],
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            scaffoldMessengerKey: rootScaffoldMessengerKey,
+            navigatorKey: navigatorKey,
+            navigatorObservers: [KioskRouteObserver()],
+            onGenerateRoute: onGenerateRoute,
+            // Covers every route while the server is unreachable at
+            // startup; needs no Overlay so it can sit above the Navigator.
+            builder: (context, child) =>
+                ConnectionGateOverlay(child: child ?? const SizedBox.shrink()),
+            initialRoute: Routes.landing,
           );
         },
       ),

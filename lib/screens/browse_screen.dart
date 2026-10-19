@@ -8,13 +8,10 @@ import '../services/api_client.dart';
 import '../services/api_exceptions.dart';
 import '../state/auth_service.dart';
 import '../state/browsing_mode_service.dart';
-import '../state/edit_mode_service.dart';
 import '../state/locale_service.dart';
 import '../state/order_flow_controller.dart';
-import '../state/permission_service.dart';
 import '../state/store_config_service.dart';
 import '../utils/locale_name.dart';
-import '../widgets/edit_mode_toggle.dart';
 import '../widgets/product_detail_sheet.dart';
 import '../widgets/product_image.dart';
 import '../widgets/quantity_stepper.dart';
@@ -114,42 +111,6 @@ class _BrowseScreenState extends State<BrowseScreen> {
     );
   }
 
-  Future<void> _refreshProduct(int productId) async {
-    try {
-      final updated = await context.read<ApiClient>().getProductDetail(productId);
-      if (!mounted) return;
-      setState(() {
-        final i = _products.indexWhere((p) => p.id == productId);
-        if (i >= 0) _products[i] = updated;
-      });
-    } catch (_) {}
-  }
-
-  void _editProduct(Product product) {
-    showModalBottomSheet(
-      context: context,
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.edit_outlined),
-              title: const Text('Edit Product'),
-              onTap: () {
-                Navigator.of(context).pop();
-                Navigator.of(context)
-                    .pushNamed(Routes.productEdit, arguments: product.id)
-                    .then((updated) {
-                  if (updated == true) _refreshProduct(product.id);
-                });
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -159,7 +120,6 @@ class _BrowseScreenState extends State<BrowseScreen> {
     final currency = context.watch<StoreConfigService>().storeCurrency ??
         flow.order?.currency;
 
-    final canEditProducts = context.watch<PermissionService>().can('EDIT_PRODUCTS');
     final mode = context.watch<BrowsingModeService>().mode;
 
     return Scaffold(
@@ -167,7 +127,6 @@ class _BrowseScreenState extends State<BrowseScreen> {
         title: widget.browseTitle ?? widget.searchQuery ?? l10n.browseTitle,
         showLangToggle: false,
         extraActions: [
-          if (canEditProducts) const EditModeToggle(),
           // Same plain globe-icon style as cart_screen.dart's language
           // button, in place of WahaAppBar's own text-pill toggle. Same
           // visibility rule as before (Kiosk/Shopping only) — only the style
@@ -188,7 +147,7 @@ class _BrowseScreenState extends State<BrowseScreen> {
       bottomNavigationBar: const WahaBottomNav(current: BottomNavTab.home),
       body: Stack(
         children: [
-          _buildBody(l10n, flow, canEditProducts),
+          _buildBody(l10n, flow),
           if (cartCount > 0)
             Positioned(
               left: 16,
@@ -201,7 +160,7 @@ class _BrowseScreenState extends State<BrowseScreen> {
     );
   }
 
-  Widget _buildBody(AppLocalizations l10n, OrderFlowController flow, bool canEditProducts) {
+  Widget _buildBody(AppLocalizations l10n, OrderFlowController flow) {
     if (_products.isEmpty && _loading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -267,7 +226,6 @@ class _BrowseScreenState extends State<BrowseScreen> {
         final cartItem =
             flow.cart.where((c) => c.productId == product.id).firstOrNull;
         final qty = cartItem?.quantity ?? 0;
-        final isEditMode = context.watch<EditModeService>().isEditMode;
         return _ProductCell(
           product: product,
           qty: qty,
@@ -276,8 +234,6 @@ class _BrowseScreenState extends State<BrowseScreen> {
           onRemoveOne: qty > 0
               ? () => flow.updateQuantity(product.id, qty - 1)
               : null,
-          isEditMode: isEditMode && canEditProducts,
-          onEdit: () => _editProduct(product),
         );
       },
     );
@@ -357,8 +313,6 @@ class _ProductCell extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onAdd;
   final VoidCallback? onRemoveOne;
-  final bool isEditMode;
-  final VoidCallback? onEdit;
 
   const _ProductCell({
     required this.product,
@@ -366,8 +320,6 @@ class _ProductCell extends StatelessWidget {
     required this.onTap,
     required this.onAdd,
     required this.onRemoveOne,
-    this.isEditMode = false,
-    this.onEdit,
   });
 
   @override
@@ -401,25 +353,6 @@ class _ProductCell extends StatelessWidget {
                     size: 28,
                   ),
                 ),
-                // Edit pen — top-right, only in edit mode
-                if (isEditMode)
-                  Positioned(
-                    top: 4,
-                    right: 4,
-                    child: GestureDetector(
-                      onTap: onEdit,
-                      child: Container(
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: const Icon(Icons.edit_outlined,
-                            size: 16, color: Colors.white),
-                      ),
-                    ),
-                  ),
               ],
             ),
           ),

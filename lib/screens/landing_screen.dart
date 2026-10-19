@@ -2,7 +2,6 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import '../services/device_config.dart';
 import 'package:provider/provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -25,7 +24,6 @@ import '../utils/locale_name.dart';
 import '../utils/scan_actions.dart';
 import '../widgets/product_detail_sheet.dart';
 import '../widgets/product_image.dart';
-import '../widgets/admin_drawer.dart';
 import '../widgets/waha_app_bar.dart';
 import '../widgets/waha_bottom_nav.dart';
 import '../config/app_config.dart';
@@ -238,7 +236,6 @@ class _LandingScreenState extends State<LandingScreen> {
       // org's default changes later, while this device still has no local
       // language choice.
       applyLanguageSeed(config);
-      await DeviceConfig.apply(config);
     } catch (_) {
       // Network hiccup — keep the previous interval, try again next tick.
     }
@@ -560,15 +557,11 @@ class _WebViewLandingState extends State<_WebViewLanding> {
 
     final storeConfig = context.watch<StoreConfigService>();
     final l10n = AppLocalizations.of(context)!;
-    final mode = context.watch<BrowsingModeService>().mode;
-    final isAdmin =
-        mode == BrowsingMode.normal && permissionService.can('MANAGE_STORES');
     final title = LandingCache.parseHtmlTitle(widget.htmlContent, widget.lang)
         ?? _resolveAppTitle(storeConfig, widget.lang, l10n);
 
     return Scaffold(
       appBar: WahaAppBar(title: title),
-      drawer: isAdmin ? const WahaAdminDrawer() : null,
       bottomNavigationBar: const WahaBottomNav(current: BottomNavTab.home),
       body: WebViewWidget(controller: _controller),
     );
@@ -625,7 +618,6 @@ class _NormalLandingState extends State<_NormalLanding> {
 
     return Scaffold(
       appBar: WahaAppBar(title: appTitle),
-      drawer: permissionService.can('MANAGE_STORES') ? const WahaAdminDrawer() : null,
       bottomNavigationBar: const WahaBottomNav(current: BottomNavTab.home),
       body: Stack(
         children: [

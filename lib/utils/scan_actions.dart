@@ -9,7 +9,6 @@ import '../services/local_prefs.dart';
 import '../state/locale_service.dart';
 import '../state/order_flow_controller.dart';
 import 'locale_name.dart';
-import 'scanner_manager.dart';
 
 /// Pushes the camera scanner, and on a successful detection, adds it to
 /// the cart — the same action the Shopping-mode CTA on Landing/Cart uses.
@@ -47,11 +46,6 @@ Future<void> addScannedBarcodeToCart(BuildContext context, String barcode) async
     await showUnpaidOrderBlockedDialog(context);
     return;
   }
-
-  // A kiosk command (QR prefixed `cmd=`), not a product code — see
-  // ScannerManager. Handled entirely there; never reaches product lookup.
-  if (await ScannerManager.instance.handle(context, barcode)) return;
-  if (!context.mounted) return;
 
   final messenger = ScaffoldMessenger.of(context);
   try {

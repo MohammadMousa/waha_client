@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:waha_kiosk/state/startup_connection.dart';
+import 'package:waha_client/state/startup_connection.dart';
 
 void main() {
   test('retry wait doubles 10, 20, 40, 80 … and is capped at 300 s', () {

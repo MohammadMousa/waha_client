@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:waha_kiosk/services/scan_sound_service.dart';
+import 'package:waha_client/services/scan_sound_service.dart';
 
 // Every started sound must be ended, and bursts must not create unbounded
 // players (the old code never ended any, so audio players piled up).

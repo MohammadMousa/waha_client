@@ -13,7 +13,6 @@ import '../models/product.dart';
 import '../models/product_page.dart';
 import '../models/quote.dart';
 import '../models/store.dart';
-import '../models/terminal_session.dart';
 import 'api_exceptions.dart';
 import 'app_info.dart';
 
@@ -235,35 +234,6 @@ class ApiClient {
           usernameOverride: username);
     }
     throw _loginFailure(resp);
-  }
-
-  // POST /api/kiosk/auth/pin/verify — checks the device PIN for the on-device
-  // Settings gate. Bearer device token; no new session; its wrong-attempt
-  // counter is separate from the device login lockout. Returns null when the
-  // PIN is right, otherwise a short message to show (wrong PIN, cooldown,
-  // expired session, network problem).
-  Future<String?> verifyKioskPin(String token, String pin) async {
-    try {
-      final resp = await _http
-          .post(_uri('/api/kiosk/auth/pin/verify'),
-              headers: _headers(token: token),
-              body: jsonEncode({'pinCode': pin}))
-          .timeout(const Duration(seconds: 8));
-      if (resp.statusCode == 200) {
-        final body = jsonDecode(resp.body) as Map<String, dynamic>;
-        return body['valid'] == true ? null : 'Incorrect PIN';
-      }
-      if (resp.statusCode == 429) {
-        return loginFailureText(_loginFailure(resp));
-      }
-      if (resp.statusCode == 400) return 'PIN must be 6 digits';
-      if (resp.statusCode == 401) {
-        return 'Session expired — restart the app and sign in again';
-      }
-      return _extractMessage(resp);
-    } catch (_) {
-      return 'Cannot reach the server to check the PIN';
-    }
   }
 
   // POST /api/kiosk/auth/logout
@@ -688,108 +658,6 @@ class ApiClient {
     if (resp.statusCode == 404) throw OrderNotFoundException(404, msg);
     if (resp.statusCode == 409) throw OrderAlreadyPaidException(409, msg);
     throw UnknownApiException(resp.statusCode, msg);
-  }
-
-  // ── Terminal payment endpoints (card-present, e.g. Geidea) ────────────────
-  //
-  // Same endpoints originally built for the waha_terminal NFC companion
-  // app's create → poll → confirm flow; now called directly by the Kiosk
-  // itself for Geidea's synchronous USB flow, skipping the polling step —
-  // the Kiosk already knows the transaction result the moment the Geidea
-  // SDK callback returns, so it confirms/cancels immediately instead of
-  // waiting for a second device to do it over HTTP.
-
-  Future<TerminalSession> createTerminalSession(String orderId,
-      {String? token}) async {
-    final resp = await _send(
-      () => _http.post(_uri('/api/orders/$orderId/terminal-session'),
-          headers: _headers(token: token)),
-    );
-    if (resp.statusCode == 200) {
-      return TerminalSession.fromJson(
-          jsonDecode(resp.body) as Map<String, dynamic>);
-    }
-    final msg = _extractMessage(resp);
-    if (resp.statusCode == 404) throw OrderNotFoundException(404, msg);
-    if (resp.statusCode == 409) throw OrderAlreadyPaidException(409, msg);
-    throw UnknownApiException(resp.statusCode, msg);
-  }
-
-  // Terminal approved the transaction; marks the order PAID. notes carries
-  // the full terminal transaction JSON (rrn, masked card number, terminal
-  // id, ...) for audit/receipt purposes — free-form JSON server-side.
-  Future<void> confirmTerminalSession(String sessionId,
-      {required String authCode,
-      required Map<String, dynamic> notes,
-      String? token}) async {
-    final resp = await _send(
-      () => _http.post(
-        _uri('/api/terminal-sessions/$sessionId/confirm'),
-        headers: _headers(token: token),
-        body: jsonEncode({'authCode': authCode, 'notes': notes}),
-      ),
-    );
-    if (resp.statusCode == 200) return;
-    throw UnknownApiException(resp.statusCode, _extractMessage(resp));
-  }
-
-  // Declined/error/gave up. Closes the PENDING record; does not preserve a
-  // decline reason server-side (flagged to backend, accepted as-is for now).
-  Future<void> cancelTerminalSession(String sessionId, {String? token}) async {
-    await _send(() => _http.post(
-        _uri('/api/terminal-sessions/$sessionId/cancel'),
-        headers: _headers(token: token)));
-  }
-
-  // POST /api/orders/{id}/late-approval — the terminal approved after the
-  // kiosk had given up. Answer is {"result": "PAID" | "IGNORED"}, both final
-  // (the server pays the order only if it is still CREATED, young enough and
-  // the amount matches). Throws [NetworkException] or [UnknownApiException]
-  // for anything that may be retried; a 4xx other than 401 is final too and
-  // is returned as the text "REJECTED".
-  Future<String> reportLateApproval(
-    String orderId, {
-    required double amount,
-    required String rrn,
-    String? approvalCode,
-    String? terminalId,
-    String? token,
-  }) async {
-    final resp = await _send(
-      () => _http.post(
-        _uri('/api/orders/$orderId/late-approval'),
-        headers: _headers(token: token),
-        body: jsonEncode({
-          'amount': amount,
-          'rrn': rrn,
-          if (approvalCode != null) 'approvalCode': approvalCode,
-          if (terminalId != null) 'terminalId': terminalId,
-        }),
-      ),
-    );
-    if (resp.statusCode == 200) {
-      final body = jsonDecode(resp.body) as Map<String, dynamic>;
-      return (body['result'] as String?) ?? 'UNKNOWN';
-    }
-    if (resp.statusCode >= 400 && resp.statusCode < 500 && resp.statusCode != 401) {
-      return 'REJECTED';
-    }
-    throw UnknownApiException(resp.statusCode, _extractMessage(resp));
-  }
-
-  // POST /api/kiosk/heartbeat — sign of life while the device is otherwise
-  // idle. Only sent when the organization property heartbeat_minutes is above 0.
-  Future<void> kioskHeartbeat(String token) async {
-    final resp = await _send(
-      () => _http.post(
-        _uri('/api/kiosk/heartbeat'),
-        headers: _headers(token: token),
-        body: jsonEncode({'appVersion': AppInfo.version}),
-      ),
-    );
-    if (resp.statusCode != 200) {
-      throw UnknownApiException(resp.statusCode, _extractMessage(resp));
-    }
   }
 
   // GET /api/orders/{id}

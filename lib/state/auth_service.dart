@@ -6,9 +6,7 @@ import '../models/auth_session.dart';
 import '../models/store.dart';
 import '../services/api_client.dart';
 import '../services/api_exceptions.dart';
-import '../services/geidea_terminal_bridge.dart';
 import '../services/local_prefs.dart';
-import '../services/device_config.dart';
 import 'browsing_mode_service.dart';
 import 'locale_service.dart';
 import 'permission_service.dart';
@@ -50,9 +48,6 @@ class AuthService extends ChangeNotifier {
     sessionStoreId = session.storeId;
     if (session.organizationId != null) {
       organizationId = session.organizationId;
-      // Native (AutoLogUploader) has no other way to learn this — best
-      // effort, diagnostics only.
-      GeideaTerminalBridge.instance.setOrgId(organizationId);
     }
     defaultStoreId = session.defaultStoreId;
     mode = session.mode;
@@ -313,7 +308,6 @@ class AuthService extends ChangeNotifier {
     try {
       final config = await api.getConfig(orgId: orgId);
       applyLanguageSeed(config);
-      await DeviceConfig.apply(config);
     } catch (_) {
       // Network hiccup — the periodic check on Landing will pick it up later.
     }

@@ -3,17 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../config/app_config.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models/quote.dart';
 import '../router/app_router.dart';
 import '../services/local_prefs.dart';
-import '../services/api_client.dart';
-import '../state/auth_service.dart';
 import '../state/browsing_mode_service.dart';
 import '../state/locale_service.dart';
 import '../state/order_flow_controller.dart';
-import '../state/simulator_service.dart';
 import '../state/store_config_service.dart';
 import '../utils/scan_actions.dart';
 import '../widgets/cart_line_tile.dart';
@@ -27,57 +23,11 @@ class CartScreen extends StatefulWidget {
 }
 
 class _CartScreenState extends State<CartScreen> {
-  // Secret dev-tools toggle: 10 taps anywhere on the cart body within 3 s.
-  int _tapCount = 0;
-  Timer? _tapTimer;
-
   final ScrollController _scrollController = ScrollController();
   final Map<int, GlobalKey> _itemKeys = {};
   final Set<int> _flashingIds = {};
   Timer? _flashTimer;
   late final OrderFlowController _flow;
-
-  // Secret 10-tap gesture, two different outcomes depending on the build:
-  //  - Simulator-enabled (dev) builds: reveals the simulator dev-tools
-  //    cluster, unchanged from before.
-  //  - Production builds running Kiosk mode's own device account: there is
-  //    no simulator to reveal, but Settings is otherwise completely
-  //    unreachable in Kiosk mode (see kioskAllowlist) — gate a way in
-  //    behind the device's own PIN instead of leaving it locked out
-  //    entirely. Not offered in Shopping mode (customer's own phone).
-  void _onBodyTap() {
-    if (AppConfig.simulatorAvailable) {
-      _tapTimer?.cancel();
-      _tapCount++;
-      if (_tapCount >= 10) {
-        _tapCount = 0;
-        context.read<SimulatorService>().showDevTools();
-      } else {
-        _tapTimer = Timer(const Duration(seconds: 3), () => _tapCount = 0);
-      }
-      return;
-    }
-
-    if (browsingModeService.mode != BrowsingMode.kiosk) return;
-    _tapTimer?.cancel();
-    _tapCount++;
-    if (_tapCount >= 10) {
-      _tapCount = 0;
-      _showDevicePinDialog();
-    } else {
-      _tapTimer = Timer(const Duration(seconds: 3), () => _tapCount = 0);
-    }
-  }
-
-  Future<void> _showDevicePinDialog() async {
-    final unlocked = await showDialog<bool>(
-      context: context,
-      builder: (_) => const _DevicePinDialog(),
-    );
-    if (unlocked == true && mounted) {
-      Navigator.of(context).pushNamed(Routes.settings);
-    }
-  }
 
   @override
   void initState() {
@@ -119,7 +69,6 @@ class _CartScreenState extends State<CartScreen> {
   void dispose() {
     _flow.removeListener(_onFlowChanged);
     _scrollController.dispose();
-    _tapTimer?.cancel();
     _flashTimer?.cancel();
     super.dispose();
   }
@@ -162,7 +111,6 @@ class _CartScreenState extends State<CartScreen> {
           showBottomNav ? const WahaBottomNav(current: BottomNavTab.cart) : null,
       body: GestureDetector(
         behavior: HitTestBehavior.translucent,
-        onTap: _onBodyTap,
         child: Column(
         children: [
           if (flow.lastError != null)
@@ -436,100 +384,4 @@ String _fmt(double amount, String? currency) {
   if (u == 'USD') return '\$$s';
   if (u == 'EUR') return '€$s';
   return '$s $currency';
-}
-
-// ── Device PIN gate — the way into Settings from Kiosk mode ─────────────────
-// Checked by the backend (POST /api/kiosk/auth/pin/verify, with the device's
-// own session token) — the PIN is never stored or compared on the device.
-// Pops `true` only once the server says the PIN matches.
-
-class _DevicePinDialog extends StatefulWidget {
-  const _DevicePinDialog();
-
-  @override
-  State<_DevicePinDialog> createState() => _DevicePinDialogState();
-}
-
-class _DevicePinDialogState extends State<_DevicePinDialog> {
-  final _pinController = TextEditingController();
-  String? _error;
-  bool _checking = false;
-
-  @override
-  void dispose() {
-    _pinController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit() async {
-    if (_checking) return;
-    final entered = _pinController.text.trim();
-    final token = authService.token;
-    if (token == null) {
-      setState(() => _error = 'Not signed in — restart the app and sign in again');
-      return;
-    }
-    setState(() {
-      _checking = true;
-      _error = null;
-    });
-    final problem = await context.read<ApiClient>().verifyKioskPin(token, entered);
-    if (!mounted) return;
-    if (problem == null) {
-      Navigator.of(context).pop(true);
-    } else {
-      setState(() {
-        _checking = false;
-        _error = problem;
-      });
-      _pinController.clear();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final scheme = Theme.of(context).colorScheme;
-    final username = authService.username ?? '—';
-
-    return AlertDialog(
-      icon: Icon(Icons.admin_panel_settings_outlined, color: scheme.primary, size: 32),
-      title: Text(l10n.devicePinDialogTitle),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(l10n.devicePinSignedInAs,
-              style: TextStyle(fontSize: 12, color: scheme.outline)),
-          Text(username,
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _pinController,
-            obscureText: true,
-            keyboardType: TextInputType.number,
-            autofocus: true,
-            maxLength: 12,
-            decoration: InputDecoration(
-              labelText: l10n.devicePinLabel,
-              border: const OutlineInputBorder(),
-              errorText: _error,
-              counterText: '',
-            ),
-            onSubmitted: (_) => _submit(),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: Text(l10n.commonCancel),
-        ),
-        FilledButton(
-          onPressed: _checking ? null : _submit,
-          child: Text(l10n.devicePinUnlock),
-        ),
-      ],
-    );
-  }
 }

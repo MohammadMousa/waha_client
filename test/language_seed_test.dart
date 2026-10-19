@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:waha_kiosk/services/local_prefs.dart';
-import 'package:waha_kiosk/state/locale_service.dart';
+import 'package:waha_client/services/local_prefs.dart';
+import 'package:waha_client/state/locale_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

@@ -1,28 +1,3 @@
-# Geidea POS terminal SDK (spec §3.3). The comment this rule set used to
-# carry ("release buildType doesn't enable isMinifyEnabled, so nothing here
-# is active yet") was wrong — confirmed via a 25MB
-# build/app/outputs/mapping/release/mapping.txt that R8 runs on every
-# release build regardless (Flutter's own Gradle plugin turns minification
-# on for release by default; nothing in this file ever needed to set
-# isMinifyEnabled explicitly for that to be true). These rules were live
-# the whole time.
--keep class geidea.net.terminal_comm_api.** {*;}
-
-# The SDK's USB-serial driver (felhr, package com.felhr.usbserial) logs under
-# its own class name (CLASS_ID = getSimpleName()): "Interface succesfully
-# claimed", "Interface could not be claimed", "Control Transfer Response: N".
-# R8 was renaming it (mapping.txt: CDCSerialDevice -> i2.b), so those log tags
-# became "b", "i" ... and SdkLogCapture (which filters by tag) never saw them.
-# Keeping the NAMES (not the code) makes the driver's own port-setup results
-# visible in the diagnostic log. No behaviour change.
--keepnames class com.felhr.usbserial.**
--keep class com.jcraft.jsch.jce.*
--keep class * extends com.jcraft.jsch.KeyExchange
--keep class com.jcraft.jsch.**
--keep class org.ietf.jgss.*
--dontwarn org.ietf.jgss.**
--dontwarn com.jcraft.jsch.**
-
 # ML Kit (mobile_scanner's on-device barcode engine) discovers its
 # CommonComponentRegistrar/BarcodeRegistrar/VisionCommonRegistrar classes
 # via reflection at runtime (Class.getDeclaredConstructor().newInstance()

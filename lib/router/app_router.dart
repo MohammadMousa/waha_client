@@ -1,18 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../models/account_user.dart';
-import '../models/store.dart';
+import '../models/product.dart';
 import '../screens/browse_screen.dart';
 import '../screens/cart_screen.dart';
 import '../screens/categories_screen.dart';
 import '../screens/checkout_screen.dart';
-import '../screens/debug_admin_stub_screen.dart';
-import '../screens/account_edit_screen.dart';
-import '../screens/accounts_screen.dart';
-import '../screens/landing_editor_screen.dart';
-import '../screens/odoo_admin_screen.dart';
 import '../screens/invoice_screen.dart';
-import '../screens/kiosk_login_screen.dart';
 import '../screens/landing_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/orders_screen.dart';
@@ -22,43 +15,31 @@ import '../screens/profile_screen.dart';
 import '../screens/register_screen.dart';
 import '../screens/scan_screen.dart';
 import '../screens/search_screen.dart';
-import '../screens/category_edit_screen.dart';
-import '../screens/product_edit_screen.dart';
-import '../screens/payment_methods_screen.dart';
-import '../screens/receipt_info_edit_screen.dart';
-import '../screens/resource_explorer_screen.dart';
 import '../screens/settings_screen.dart';
-import '../screens/store_edit_screen.dart';
 import '../screens/store_picker_screen.dart';
 import '../screens/success_screen.dart';
-import '../models/category.dart';
-import '../models/product.dart';
-import '../state/auth_service.dart';
 import '../state/browsing_mode_service.dart';
 import '../widgets/hardware_scan_listener.dart';
-import '../widgets/mode_badge.dart';
-import '../widgets/simulator_overlay.dart';
 
-/// Lets code outside the routed page tree (KioskIdleGuard, mounted once
-/// above MaterialApp — see main.dart) push/pop navigation and know which
-/// route is on top, without needing a per-route BuildContext of its own.
-/// Passing this key's own currentContext to Navigator.of()/showDialog()/
-/// showModalBottomSheet() works because Navigator.of() special-cases a
-/// context that IS a NavigatorState's own element.
+/// Lets code outside the routed page tree push/pop navigation and know
+/// which route is on top, without needing a per-route BuildContext of its
+/// own. Passing this key's own currentContext to Navigator.of()/
+/// showDialog()/showModalBottomSheet() works because Navigator.of()
+/// special-cases a context that IS a NavigatorState's own element.
 final navigatorKey = GlobalKey<NavigatorState>();
 
-/// Tracks the currently-top route's name for KioskIdleGuard, which needs to
-/// know this without being built inside any specific route (it wraps
-/// MaterialApp itself, not a page). Register once via MaterialApp's
-/// navigatorObservers — see main.dart.
+/// Tracks the currently-top route's name for code that isn't built inside
+/// any specific route. Register once via MaterialApp's navigatorObservers
+/// — see main.dart.
 class KioskRouteObserver extends NavigatorObserver {
   static final ValueNotifier<String?> currentRouteName = ValueNotifier(null);
 
   void _update(Route<dynamic>? route) {
     final name = route?.settings.name;
     // A small notice dialog on top of a page does not change which page the
-    // customer is on, so the idle timer must keep running underneath it —
-    // otherwise a "Not found" dialog left on screen would stop it for good.
+    // customer is on, so anything watching this must keep running
+    // underneath it — otherwise a "Not found" dialog left on screen would
+    // stop it for good.
     if (name != null && Routes.transientOverlays.contains(name)) return;
     currentRouteName.value = name;
   }
@@ -75,14 +56,13 @@ class KioskRouteObserver extends NavigatorObserver {
 
 /// Returns to Landing without rebuilding it.
 ///
-/// Landing is the root route and hosts a WebView. Replacing it with
-/// pushNamedAndRemoveUntil(landing, (_) => false) destroys the live WebView and
-/// builds a new one, which shows a blank screen until the page paints again
-/// on every idle reset / new order — and creating and destroying WebViews
-/// repeatedly is costly on the kiosk's old Android WebView. Popping down to
-/// the root keeps the already-painted Landing alive instead. Falls back to
-/// the rebuild only if the root is somehow not Landing (e.g. a login flow
-/// that replaced it).
+/// Landing is the root route and can host a WebView (a server-configured
+/// landing page). Replacing it with pushNamedAndRemoveUntil(landing, (_) =>
+/// false) destroys the live WebView and builds a new one, which shows a
+/// blank screen until the page paints again — and creating/destroying
+/// WebViews repeatedly is costly. Popping down to the root keeps the
+/// already-painted Landing alive instead. Falls back to the rebuild only
+/// if the root is somehow not Landing (e.g. a login flow that replaced it).
 void goHomeKeepingLanding(NavigatorState nav) {
   String? rootName;
   nav.popUntil((route) {
@@ -115,105 +95,52 @@ class Routes {
   static const productDetail = '/browse/product';
   static const register = '/register';
   static const login = '/login';
-  static const kioskLogin = '/kiosk-login';
   static const storePicker = '/store-picker';
   static const invoice = '/invoice';
   static const orders = '/orders';
   static const search = '/search';
   static const categories = '/categories';
-  static const resourceExplorer = '/admin/resources';
-  static const productEdit = '/admin/product/edit';
-  static const categoryEdit = '/admin/category/edit';
-  static const storeEdit = '/admin/store/edit';
-  static const receiptInfoEdit = '/admin/receipt-info/edit';
-  static const paymentMethods = '/admin/payment-methods';
 
-  /// Debug-only — deliberately NOT in kioskAllowlist. Exists to make the
-  /// lock observable; see debug_admin_stub_screen.dart.
-  static const debugAdminStub = '/debug/admin-stub';
-  static const odooAdmin = '/admin/odoo';
-  static const landingEditor = '/admin/landing-editor';
-  static const accounts = '/admin/accounts';
-  static const accountEdit = '/admin/accounts/edit';
-
-  /// Screens reachable while navigation is restricted. Applies to BOTH
-  /// Kiosk and Shopping — per the actual product model, "customer already
-  /// has the item in hand" is what's restricted, and that's true for a
-  /// locked terminal (Kiosk) and a customer's own phone (Shopping) alike.
-  /// Only Normal mode gets the gate lifted. Settings, Profile, Browse,
-  /// Product Detail, Register, Login, and Store Picker are all
-  /// deliberately excluded either way — restricted navigation shouldn't
-  /// offer a way to reach account/config screens mid-session. Browse is
-  /// Normal-mode-only for now on purpose, even though MVP.txt's own table
-  /// lists Shopping as having full browsing too — kept out of scope this
-  /// round to avoid re-litigating Shopping's already-built fast-scan UX
-  /// in the same change; see FRONTEND_AI.md.
-  // browse/categories/search/productDetail are intentionally included so that
-  // HTML landing-page banners (href="/screen?name=browse_screen&tag=X") can
-  // navigate to catalog screens from kiosk/shopping mode without being blocked
-  // by the nav guard. Profile and admin/auth routes remain locked. Settings
-  // is reachable only via the deliberate 10-tap + device-PIN gesture on the
-  // Cart screen — nothing else links to it from kiosk mode, so adding it
-  // here doesn't open any other door.
+  /// Screens reachable while navigation is restricted (Shopping mode only
+  /// here — waha_client has no Kiosk mode): "customer already has the
+  /// item in hand" is what's restricted. Settings, Profile, Register,
+  /// Login, and Store Picker are deliberately excluded — restricted
+  /// navigation shouldn't offer a way to reach account/config screens
+  /// mid-session.
+  // browse/categories/search/productDetail are intentionally included so
+  // that HTML landing-page banners (href="/screen?name=browse_screen&tag=X")
+  // can navigate to catalog screens from Shopping mode without being
+  // blocked by the nav guard.
   static const kioskAllowlist = {landing, scan, cart, checkout, invoice, pay, success,
       browse, categories, search, productDetail, settings};
 
   /// Reused (see onGenerateRoute) to decide where the ambient hardware-
   /// scanner listener mounts: the same product/cart screens are exactly
-  /// where a barcode scan should always be accepted, in every mode — not
-  /// just Kiosk/Shopping's restricted set. Deliberately NOT the same set as
-  /// kioskAllowlist above — settings has no business accepting a barcode
-  /// scan into the cart in the background.
+  /// where a barcode/keyboard-wedge scan should always be accepted, in
+  /// every mode — not just Shopping's restricted set. Deliberately NOT the
+  /// same set as kioskAllowlist above — settings has no business accepting
+  /// a scan into the cart in the background.
   static const scanEnabledRoutes = {landing, scan, cart, checkout, invoice, pay, success,
       browse, categories, search, productDetail};
-
-  /// Which non-Landing routes count as "after invoice" for idle-timer
-  /// purposes (shorter, display-oriented countdown vs. the general
-  /// before-invoice one). `invoice` is deliberately NOT here: an invoice
-  /// that is still unpaid is a before-payment screen — the customer may be
-  /// fetching a card or a phone — so it gets the longer before-invoice
-  /// window. Once it is paid the guard suspends itself (see
-  /// KioskIdleGuard._isPaid) and the paid dialog owns its own countdown.
-  static const afterInvoiceRoutes = {success};
 }
 
-/// Route guard + idle-timer application.
+/// Route guard.
 ///
-/// Navigation lock applies to Kiosk AND Shopping — any route outside
-/// kioskAllowlist bounces back to Landing in both. Only Normal gets full
-/// navigation. Idle-recovery timers are narrower: Kiosk only, since
-/// Shopping runs on the customer's own phone — there's no "walked away
-/// from an unattended terminal" concern to guard against there, even
-/// though its navigation is just as locked as Kiosk's.
+/// Navigation lock applies to Shopping mode: any route outside
+/// [Routes.kioskAllowlist] bounces back to Landing. Normal mode gets full
+/// navigation.
 ///
 /// Reads `browsingModeService.mode` directly rather than through Provider —
 /// this function gets no BuildContext, so it can't watch a
 /// ChangeNotifier; it just reads the current value fresh on every
 /// navigation, which is what's needed here.
-///
-/// Every page is stacked with SimulatorOverlay *here*, inside the route's
-/// own builder — deliberately not done once at the MaterialApp.builder
-/// level (that was tried first and is wrong: MaterialApp.builder's `child`
-/// wraps the Navigator, but the Overlay that Tooltip/Navigator.of() need
-/// lives inside the Navigator, not above it — stacking the simulator as a
-/// sibling of `child` put it outside that Overlay's reach entirely).
-/// Building the Stack per-route instead means SimulatorOverlay is a true
-/// descendant of the Navigator on every page, so it has real Overlay/
-/// Navigator ancestors to find.
 Route<dynamic> onGenerateRoute(RouteSettings settings) {
   final name = settings.name ?? Routes.landing;
   final mode = browsingModeService.mode;
-  final isRestrictedNav = mode == BrowsingMode.kiosk || mode == BrowsingMode.shopping;
-  final isKiosk = mode == BrowsingMode.kiosk;
+  final isRestrictedNav = mode == BrowsingMode.shopping;
 
   Widget page;
-  // Kiosk is never anonymous: every route (including Landing itself) is
-  // gated behind a device session. Checked before the allowlist below —
-  // an unauthenticated device shouldn't even reach Landing's "start
-  // scanning" entry point, let alone the routes that allowlist opens up.
-  if (isKiosk && !authService.isDeviceSession && name != Routes.kioskLogin) {
-    page = const KioskLoginScreen();
-  } else if (isRestrictedNav && !Routes.kioskAllowlist.contains(name)) {
+  if (isRestrictedNav && !Routes.kioskAllowlist.contains(name)) {
     page = const LandingScreen();
   } else {
     switch (name) {
@@ -241,52 +168,6 @@ Route<dynamic> onGenerateRoute(RouteSettings settings) {
       case Routes.success:
         page = const SuccessScreen();
         break;
-      case Routes.debugAdminStub:
-        page = const DebugAdminStubScreen();
-        break;
-      case Routes.odooAdmin:
-        page = const OdooAdminScreen();
-        break;
-      case Routes.landingEditor:
-        page = const LandingEditorScreen();
-        break;
-      case Routes.resourceExplorer:
-        page = const ResourceExplorerScreen();
-        break;
-      case Routes.productEdit:
-        final productId = settings.arguments;
-        page = productId is int
-            ? ProductEditScreen(productId: productId)
-            : const LandingScreen();
-        break;
-      case Routes.categoryEdit:
-        final catArg = settings.arguments;
-        page = catArg is Category
-            ? CategoryEditScreen(category: catArg)
-            : const LandingScreen();
-        break;
-      case Routes.storeEdit:
-        final storeArg = settings.arguments;
-        // null argument = create mode; Store argument = edit mode
-        page = (storeArg is Store || storeArg == null)
-            ? StoreEditScreen(store: storeArg is Store ? storeArg : null)
-            : const LandingScreen();
-        break;
-      case Routes.accounts:
-        page = const AccountsScreen();
-        break;
-      case Routes.accountEdit:
-        final accountArg = settings.arguments;
-        page = accountArg is AccountUser || accountArg == null
-            ? AccountEditScreen(account: accountArg is AccountUser ? accountArg : null)
-            : const LandingScreen();
-        break;
-      case Routes.paymentMethods:
-        page = const PaymentMethodsScreen();
-        break;
-      case Routes.receiptInfoEdit:
-        page = const ReceiptInfoEditScreen();
-        break;
       case Routes.settings:
         page = const SettingsScreen();
         break;
@@ -305,9 +186,6 @@ Route<dynamic> onGenerateRoute(RouteSettings settings) {
         break;
       case Routes.login:
         page = const LoginScreen();
-        break;
-      case Routes.kioskLogin:
-        page = const KioskLoginScreen();
         break;
       case Routes.storePicker:
         page = const StorePickerScreen();
@@ -332,39 +210,17 @@ Route<dynamic> onGenerateRoute(RouteSettings settings) {
     }
   }
 
-  // No per-route idle-timer wrapping anymore — KioskIdleGuard is mounted
-  // ONCE, above MaterialApp (see main.dart), and tracks the current route
-  // via KioskRouteObserver above instead of being rebuilt on every push.
-  // The old design wrapped each guarded page in its own KioskIdleGuard
-  // instance here; Flutter's normal push navigation never disposes routes
-  // underneath a new one, so any two guarded routes stacked together (not
-  // just cart+invoice — e.g. cart pushed to checkout without replacing)
-  // ran two fully independent timers at once. Confirmed via trace logging
-  // as the actual cause of a real black-screen crash: both fired within
-  // milliseconds of each other, each showed its own warning sheet and
-  // tried to redirect/reset Navigator state at the same time. A single
-  // controller for the whole app makes that structurally impossible —
-  // there is exactly one Timer and one "warning showing" flag in the
-  // entire app, however many guarded routes are stacked underneath.
-  //
-  // Routes.invoice IS guarded (as a before-invoice screen): a customer who
-  // creates an invoice and walks away, or backs out of a failed/cancelled
-  // payment, must not be left on the unpaid invoice forever. The
-  // auto-select/auto-pick logic in InvoiceScreen only covers the first few
-  // seconds after the screen loads and never re-arms; this single guard
-  // covers everything after that.
-
   return MaterialPageRoute(
     settings: settings,
     builder: (_) => Stack(
       children: [
         page,
-        // Ambient hardware-scanner capture — mounted directly on whichever
-        // product/cart screen is on top, not dependent on any TextField
-        // holding focus, so it survives navigation away from Landing.
+        // Ambient hardware-scanner capture (a USB/BT keyboard-wedge
+        // scanner, or Normal mode's own camera scan) — mounted directly on
+        // whichever product/cart screen is on top, not dependent on any
+        // TextField holding focus, so it survives navigation away from
+        // Landing.
         if (Routes.scanEnabledRoutes.contains(name)) const HardwareScanListener(),
-        const SimulatorOverlay(),
-        const ModeBadge(),
       ],
     ),
   );

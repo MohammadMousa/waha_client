@@ -33,23 +33,9 @@ android {
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
-        // Pinned below Flutter's own default (34+), NOT flutter.targetSdkVersion —
-        // Geidea's compiled POS SDK (net.geidea.sdk:pos-comm-sdk-ksa 1.3.0)
-        // constructs a mutable PendingIntent from an implicit intent internally
-        // (geidea.net.terminal_comm_api.USBService, requesting USB permission),
-        // which Android 14 flatly disallows for apps targeting API 34+ — see
-        // https://developer.android.com/about/versions/14/behavior-changes-14
-        // ("Restrictions to implicit and pending intents"). Confirmed via a
-        // real crash log from the client's Android 14 kiosk: an uncaught
-        // IllegalArgumentException from inside that exact SDK class, crashing
-        // the app on every startup. The restriction is gated by targetSdk, not
-        // by the device's own Android version, so targeting 33 here makes
-        // Geidea's SDK behave exactly as it did on Android 13 and earlier —
-        // this isn't source we can patch (no source, it's a closed binary).
-        // Geidea's 1.3.1 (the version used now) builds this PendingIntent with
-        // an explicit intent, so the pin can be lifted — but only after a test
-        // with a real terminal on the Android 14 tablet.
-        targetSdk = 33
+        // No Geidea/USB SDK here (waha_client has no payment terminal), so
+        // no reason to pin below Flutter's own default.
+        targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
@@ -77,7 +63,7 @@ android {
     }
 
     // Renames the built APK from Flutter's generic app-release.apk to
-    // something that identifies itself on sight — waha-kiosk-release.apk —
+    // something that identifies itself on sight — waha-client-release.apk —
     // since this is handed off/installed manually rather than through a
     // store listing that already carries the app's name.
     applicationVariants.all {
@@ -86,7 +72,7 @@ android {
             .map { it as com.android.build.gradle.internal.api.BaseVariantOutputImpl }
             .forEach { output ->
                 val keyTag = if (variant.buildType.name == "release" && !useReleaseKey) "-DEBUGKEY" else ""
-                output.outputFileName = "waha-kiosk-${variant.buildType.name}$keyTag.apk"
+                output.outputFileName = "waha-client-${variant.buildType.name}$keyTag.apk"
             }
     }
 }
@@ -98,17 +84,8 @@ kotlin {
 }
 
 dependencies {
-    // Geidea POS terminal SDK (USB Serial). The archive at
-    // android/app/libs/Geidea_Android_SDK_v1.3.0.rar turned out to contain
-    // only docs + a sample app, no bundled binary — the sample's own
-    // build.gradle pulls the SDK from the Cloudsmith repo declared in the
-    // root build.gradle.kts, same as here. com.jcraft:jsch (kept in
-    // proguard-rules.pro) resolves transitively via this artifact's own
-    // POM — no need to declare it separately.
-    implementation("net.geidea.sdk:pos-comm-sdk-ksa:1.3.1")
-
-    // JVM unit tests (PaymentCallbackClassifierTest) — pure Kotlin, no device.
-    testImplementation("junit:junit:4.13.2")
+    // No native dependencies — waha_client has no payment-terminal SDK and
+    // no custom Kotlin diagnostics; MainActivity is a plain FlutterActivity.
 }
 
 flutter {

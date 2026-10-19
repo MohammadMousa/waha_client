@@ -3,14 +3,14 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:waha_kiosk/config/app_config.dart';
-import 'package:waha_kiosk/config/connection_settings.dart';
-import 'package:waha_kiosk/services/api_client.dart';
-import 'package:waha_kiosk/services/connection_switcher.dart';
-import 'package:waha_kiosk/services/local_prefs.dart';
-import 'package:waha_kiosk/state/auth_service.dart';
-import 'package:waha_kiosk/state/browsing_mode_service.dart';
-import 'package:waha_kiosk/state/order_flow_controller.dart';
+import 'package:waha_client/config/app_config.dart';
+import 'package:waha_client/config/connection_settings.dart';
+import 'package:waha_client/services/api_client.dart';
+import 'package:waha_client/services/connection_switcher.dart';
+import 'package:waha_client/services/local_prefs.dart';
+import 'package:waha_client/state/auth_service.dart';
+import 'package:waha_client/state/browsing_mode_service.dart';
+import 'package:waha_client/state/order_flow_controller.dart';
 
 /// Minimal stand-in for a Waha backend: /api/config, kiosk login, stores.
 Future<HttpServer> fakeServer({required String pin}) async {

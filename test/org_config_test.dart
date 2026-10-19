@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:waha_kiosk/models/auth_session.dart';
-import 'package:waha_kiosk/services/api_client.dart';
+import 'package:waha_client/models/auth_session.dart';
+import 'package:waha_client/services/api_client.dart';
 
 void main() {
   test('AuthSession.fromJson parses organizationId', () {

@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:waha_kiosk/services/api_client.dart';
-import 'package:waha_kiosk/services/api_exceptions.dart';
+import 'package:waha_client/services/api_client.dart';
+import 'package:waha_client/services/api_exceptions.dart';
 
 Future<HttpServer> _server(int status, Map<String, dynamic> body) async {
   final s = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);

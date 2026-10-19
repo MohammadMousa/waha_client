@@ -9,11 +9,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models/order.dart';
 import '../models/payment_method.dart';
-import '../models/terminal_session.dart';
 import '../router/app_router.dart';
 import '../services/api_client.dart';
-import '../services/geidea_terminal_bridge.dart';
-import '../services/local_prefs.dart';
 import '../state/auth_service.dart';
 import '../state/browsing_mode_service.dart';
 import '../state/locale_service.dart';
@@ -22,7 +19,6 @@ import '../services/trace_log.dart';
 import '../state/store_config_service.dart';
 import '../utils/locale_name.dart';
 import '../widgets/timer_footer_sheet.dart';
-import 'qr_payment_screen.dart';
 
 enum _Phase { loading, loaded, paying, waiting, paid, cancelled }
 
@@ -123,12 +119,9 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
 
   /// Only called once _methods.isNotEmpty is already established (see
   /// _maybeStartAutoSelect) — always returns a real method, never null.
-  PaymentMethod _chooseAutoPickMethod() {
-    for (final method in _methods) {
-      if (method.provider == 'TERMINAL') return method;
-    }
-    return _methods.first;
-  }
+  /// The kiosk app prefers a TERMINAL method here; waha_client has none on
+  /// offer, so just the first configured method.
+  PaymentMethod _chooseAutoPickMethod() => _methods.first;
 
   void _cancelAutoSelect() {
     _autoSelectTimer?.cancel();
@@ -274,51 +267,23 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
 
       if (!mounted) return;
 
-      if (method.isQrLink) {
-        setState(() => _launchingSession = false);
-        final lang = localeService.locale.languageCode;
-        final methodLabel = localeName(method.displayName, lang)
-            .let((s) => s.isEmpty ? method.key : s);
-        // See _handleTerminal's comment — this dialog polls waiting on a
-        // customer's own phone and can sit open for a while too.
-        flow.setPaymentInProgress(true);
-        final WahaOrder? paidOrder;
-        try {
-          paidOrder = await showDialog<WahaOrder>(
-            context: context,
-            barrierDismissible: false,
-            builder: (_) => Dialog(
-              insetPadding: const EdgeInsets.symmetric(
-                  horizontal: 24, vertical: 48),
-              clipBehavior: Clip.antiAlias,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20)),
-              child: QrPaymentScreen(
-                orderId: flow.orderId!,
-                qrCodeDataUri: session.qrCodeDataUri!,
-                expiresAt: session.expiresAt!,
-                methodLabel: methodLabel,
-                onRefreshOrder: flow.refreshOrder,
-              ),
-            ),
-          );
-        } finally {
-          flow.setPaymentInProgress(false);
-        }
-        if (!mounted) return;
-        if (paidOrder != null) _onPaid(paidOrder);
+      // waha_client has no fixed on-site screen for a customer to scan a QR
+      // from — the customer is always already on the device that would do
+      // the scanning. QR_LINK (scan THIS screen with a separate phone) and
+      // PAYMENT_URL (same idea, a merchant-configured link) only make sense
+      // on a kiosk and aren't handled here; the backend's payment_methods
+      // config for a non-kiosk client is not expected to offer either.
+      if (method.isQrLink || method.isPaymentUrl) {
+        setState(() {
+          _launchingSession = false;
+          _sessionError = 'This payment method is not supported here.';
+        });
         return;
       }
 
-      // PAYMENT_URL: no backend session needed — QR is the invoice URL.
-      // Should not reach here since _handlePaymentUrl is called directly,
-      // but guard for safety.
-      if (method.isPaymentUrl) {
-        setState(() => _launchingSession = false);
-        return;
-      }
-
-      // Standard browser redirect flow (REDIRECT provider)
+      // Standard browser redirect flow (REDIRECT provider — Stripe,
+      // MyFatoorah, or any other hosted-checkout aggregator the backend has
+      // configured; this just opens whatever redirectUrl it returns).
       final launched = await launchUrl(
           Uri.parse(session.redirectUrl),
           mode: LaunchMode.externalApplication);
@@ -474,95 +439,14 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
     final Future<void> future;
     if (method.provider == 'SIMULATED') {
       future = _paySimulated(outcome: 'SUCCESS');
-    } else if (method.provider == 'TERMINAL') {
-      future = _handleTerminal(method);
-    } else if (method.isPaymentUrl) {
-      future = _handlePaymentUrl(method);
     } else {
+      // TERMINAL (card-present, kiosk only) and PAYMENT_URL/QR_LINK
+      // (customer scans this screen with a separate phone, kiosk only)
+      // aren't offered here — waha_client only has the browser-redirect
+      // flow, which _payWithRedirect itself refuses gracefully for either.
       future = _payWithRedirect(method);
     }
     future.whenComplete(() => _methodHandling = false);
-  }
-
-  Future<void> _handleTerminal(PaymentMethod method) async {
-    final orderId = _order?.orderId;
-    if (orderId == null) return;
-    final apiClient = context.read<ApiClient>();
-    final flow = context.read<OrderFlowController>();
-
-    // Tells KioskIdleGuard to suspend its own timer for as long as this
-    // dialog is open — it can sit unresolved for a long time waiting on the
-    // terminal, and the idle countdown firing underneath it corrupts
-    // Navigator state (see OrderFlowController.paymentInProgress).
-    flow.setPaymentInProgress(true);
-    final WahaOrder? paidOrder;
-    try {
-      paidOrder = await showDialog<WahaOrder>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
-          // Without a cap the card grows to the full screen width on a kiosk.
-          constraints: const BoxConstraints(minWidth: 360, maxWidth: 520),
-          clipBehavior: Clip.antiAlias,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          child: _TerminalPaymentScreen(
-            orderId: orderId,
-            apiClient: apiClient,
-          ),
-        ),
-      );
-    } finally {
-      flow.setPaymentInProgress(false);
-    }
-
-    if (paidOrder != null && mounted) {
-      _onPaid(paidOrder);
-    }
-  }
-
-  // PAYMENT_URL: construct invoice URL from paymentUrl template + orderId,
-  // show as QR dialog. Customer scans on phone, pays there. Kiosk polls.
-  Future<void> _handlePaymentUrl(PaymentMethod method) async {
-    final baseUrl = method.paymentUrl;
-    final orderId = _order?.orderId;
-    if (baseUrl == null || baseUrl.isEmpty || orderId == null) {
-      setState(() => _sessionError = 'Mobile Payment is not configured for this store.');
-      return;
-    }
-    final qrUrl = '$baseUrl/invoice/$orderId';
-    final lang = localeService.locale.languageCode;
-    final methodLabel = localeName(method.displayName, lang)
-        .let((s) => s.isEmpty ? method.key : s);
-    final l10n = AppLocalizations.of(context)!;
-    final flow = context.read<OrderFlowController>();
-
-    // See _handleTerminal's comment — this dialog polls waiting on a
-    // customer's own phone and can sit open for a while too.
-    flow.setPaymentInProgress(true);
-    final WahaOrder? paidOrder;
-    try {
-      paidOrder = await showDialog<WahaOrder>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
-          clipBehavior: Clip.antiAlias,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          child: _MobilePaymentScreen(
-            qrUrl: qrUrl,
-            methodLabel: methodLabel,
-            scanHint: l10n.mobilePaymentScanHint,
-            pollingLabel: l10n.mobilePaymentPolling,
-            onRefreshOrder: flow.refreshOrder,
-          ),
-        ),
-      );
-    } finally {
-      flow.setPaymentInProgress(false);
-    }
-    if (!mounted) return;
-    if (paidOrder != null) _onPaid(paidOrder);
   }
 
   // ── Payment method popup ──────────────────────────────────────────────────────
@@ -850,15 +734,10 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                               _cancelAutoSelect();
                               TraceLog.log(
                                   'Invoice: manual pick ${method.key} (${method.provider})');
-                              if (method.isPaymentUrl) {
-                                _handlePaymentUrl(method);
-                              } else if (method.provider == 'TERMINAL') {
-                                _handleTerminal(method);
-                              } else if (method.provider == 'REDIRECT' ||
-                                  method.provider == 'QR_LINK') {
-                                _payWithRedirect(method);
-                              } else {
+                              if (method.provider == 'SIMULATED') {
                                 _showPaymentSheet(method);
+                              } else {
+                                _payWithRedirect(method);
                               }
                             },
                     ),
@@ -1740,528 +1619,4 @@ String _formatDate(String iso) {
 
 extension _StringX on String {
   String let(String Function(String) fn) => fn(this);
-}
-
-// ── Mobile Payment QR Screen ──────────────────────────────────────────────────
-// Dialog content for PAYMENT_URL provider. Shows the invoice URL as a QR so
-// the kiosk customer can scan it and pay on their own phone. Polls the order
-// status until PAID, then pops with the paid order.
-
-class _MobilePaymentScreen extends StatefulWidget {
-  final String qrUrl;
-  final String methodLabel;
-  final String scanHint;
-  final String pollingLabel;
-  final Future<WahaOrder> Function() onRefreshOrder;
-
-  const _MobilePaymentScreen({
-    required this.qrUrl,
-    required this.methodLabel,
-    required this.scanHint,
-    required this.pollingLabel,
-    required this.onRefreshOrder,
-  });
-
-  @override
-  State<_MobilePaymentScreen> createState() => _MobilePaymentScreenState();
-}
-
-class _MobilePaymentScreenState extends State<_MobilePaymentScreen> {
-  Timer? _pollTimer;
-
-  // Same overall cap as the redirect flow's polling (~5 min, see
-  // _maxPollAttempts): without one this dialog waits forever on a customer
-  // who walked away, and the payment-in-progress flag it holds keeps the idle
-  // guard suspended for good.
-  static const _maxPolls = 100; // 100 x 3 s
-  int _polls = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => _poll());
-  }
-
-  @override
-  void dispose() {
-    _pollTimer?.cancel();
-    super.dispose();
-  }
-
-  void _poll() {
-    if (++_polls > _maxPolls) {
-      _pollTimer?.cancel();
-      if (mounted) Navigator.of(context).pop(null);
-      return;
-    }
-    widget.onRefreshOrder().then((order) {
-      if (order.status == 'PAID' && mounted) {
-        _pollTimer?.cancel();
-        Navigator.of(context).pop(order);
-      }
-    }).catchError((_) {});
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Header
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 8, 0),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(widget.methodLabel,
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleLarge
-                            ?.copyWith(fontWeight: FontWeight.w700)),
-                    Text(widget.scanHint,
-                        style: TextStyle(
-                            fontSize: 13, color: scheme.onSurfaceVariant)),
-                  ],
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () => Navigator.of(context).pop(null),
-              ),
-            ],
-          ),
-        ),
-        const Divider(height: 1),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
-                      blurRadius: 12,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                padding: const EdgeInsets.all(12),
-                child: QrImageView(
-                  data: widget.qrUrl,
-                  version: QrVersions.auto,
-                  size: 200,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 1.5),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(widget.pollingLabel,
-                      style: TextStyle(
-                          color: scheme.onSurfaceVariant, fontSize: 13)),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ── Terminal payment dialog ────────────────────────────────────────────────────
-
-class _TerminalPaymentScreen extends StatefulWidget {
-  final String orderId;
-  final ApiClient apiClient;
-
-  const _TerminalPaymentScreen({required this.orderId, required this.apiClient});
-
-  @override
-  State<_TerminalPaymentScreen> createState() => _TerminalPaymentScreenState();
-}
-
-// Synchronous USB flow (Geidea): create the backend session, hand the
-// amount to the terminal via GeideaTerminalBridge, and act on whatever
-// comes back directly — no polling. This dialog used to poll
-// GET /terminal-sessions/{id} waiting for a second device (the waha_terminal
-// NFC companion app) to confirm over HTTP; that app is retired, Geidea
-// replaces it, and the Kiosk itself already knows the result the moment
-// the SDK callback returns.
-class _TerminalPaymentScreenState extends State<_TerminalPaymentScreen> {
-  String? _statusLabel;
-  bool _failed = false;
-  TerminalSession? _session;
-  bool _started = false;
-
-  // A failed attempt (terminal not found, session couldn't start, declined)
-  // used to sit here until someone tapped Close — and while this dialog is
-  // open the payment-in-progress flag stays on, which suspends the idle
-  // guard, so an abandoned kiosk could never recover. Close it on its own
-  // after a readable delay; the invoice screen underneath is then covered by
-  // the idle guard. Deliberately NOT applied to "approved but not recorded":
-  // that message is for staff (the card was charged) and must stay up.
-  static const _failedAutoClose = Duration(seconds: 20);
-  Timer? _autoCloseTimer;
-
-  void _scheduleAutoClose() {
-    _autoCloseTimer?.cancel();
-    _autoCloseTimer = Timer(_failedAutoClose, () {
-      if (mounted) Navigator.pop(context, null);
-    });
-  }
-
-  @override
-  void dispose() {
-    _autoCloseTimer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // l10n needs an inherited widget lookup, unavailable in initState — set
-    // the initial label here instead (runs once, before the first build, so
-    // a direct field write is safe with no setState needed) and kick off
-    // the actual flow. Guarded so a later dependency change (e.g. locale
-    // switch) can't restart it.
-    if (!_started) {
-      _started = true;
-      _statusLabel = AppLocalizations.of(context)!.terminalConnecting;
-      _run();
-    }
-  }
-
-  Future<void> _run() async {
-    final l10n = AppLocalizations.of(context)!;
-    final bridge = GeideaTerminalBridge.instance;
-
-    // Settings → POS Terminal Options → "Reset Terminal before Payment",
-    // off by default. When ON: actively reconnect here, unconditionally —
-    // do NOT trust checkCommunication() alone first. It only reads
-    // MainActivity's last-known isUsbConnected flag, set by whichever
-    // USBConnectionListener callback fired last; nothing keeps it live
-    // between that callback and this exact moment. A client report of the
-    // transaction never reaching the physical terminal at all (no prompt,
-    // nothing) — while the app still believed it was connected — matches
-    // this exactly: the cached flag said true, startPurchaseTransaction()
-    // was called against a connection that had actually gone stale, and
-    // Geidea's SDK failed immediately, internally, before ever writing
-    // anything to the terminal for the customer to see. Forcing a fresh
-    // reconnect attempt right here closes that gap — but on real hardware
-    // it's sometimes slow enough (seconds, occasionally much longer) that
-    // the cashier cancels out of it before the terminal ever comes back —
-    // a lost sale caused by the safeguard itself. Default OFF skips this
-    // and goes straight to payment; ON is the fallback if that stale-
-    // connection bug resurfaces without it.
-    TraceLog.log('Terminal: payment run start, order ${widget.orderId}');
-
-    // The terminal said "busy" a moment ago: another request would fail the
-    // same way, so refuse it here, with how long to wait.
-    final busyLeft = GeideaTerminalBridge.busyCooldownRemaining();
-    if (busyLeft > Duration.zero) {
-      TraceLog.log('Terminal: refusing a new payment — the terminal said busy ${GeideaTerminalBridge.busyCooldown.inSeconds - busyLeft.inSeconds}s ago');
-      setState(() {
-        _failed = true;
-        _statusLabel = l10n.terminalBusyTryLater((busyLeft.inMilliseconds / 1000).ceil());
-      });
-      _scheduleAutoClose();
-      return;
-    }
-
-    // First, is the SDK's background USB service still there? The SDK destroys
-    // it about a minute after the app was stopped and nothing re-binds it (see
-    // ensureTerminalService). If it cannot be brought back, say so now — not
-    // after a hold and not after a 60-second spinner.
-    final service = await bridge.ensureTerminalService();
-    if (!mounted || _cancelledByUser) return;
-    if (!service.ready) {
-      TraceLog.log('Terminal: the SDK USB service could not be re-opened, not starting the payment');
-      setState(() {
-        _failed = true;
-        _statusLabel = l10n.terminalNotReady;
-      });
-      _scheduleAutoClose();
-      return;
-    }
-    if (service.reopened && GeideaTerminalBridge.hasPendingAttempt) {
-      // The service was gone, so an earlier attempt's command went to a dead
-      // service and never reached the terminal: nothing is left to wait for.
-      TraceLog.log('Terminal: the SDK service had been lost and was re-opened — an earlier pending attempt cannot be on the terminal, skipping the hold');
-      await LocalPrefs.setPendingTerminalAttempt(null);
-    }
-
-    // An earlier attempt (e.g. one the cashier cancelled) may still be on the
-    // terminal — cancelling on screen cannot stop it. Wait out the terminal
-    // timeout from that attempt's start before sending another purchase, so
-    // two never overlap on the terminal. A final answer to the earlier
-    // attempt ends the wait early (see GeideaTerminalBridge.startPayment).
-    final held = await GeideaTerminalBridge.pendingAttemptRemaining();
-    if (held > Duration.zero) {
-      TraceLog.log('Terminal: earlier attempt still pending — holding this one up to ${held.inSeconds}s');
-      final finished = await GeideaTerminalBridge.waitOutHold(
-        held,
-        onTick: (s) {
-          if (mounted) setState(() => _statusLabel = l10n.terminalPreviousPaymentPending(s));
-        },
-        stillPending: () => GeideaTerminalBridge.hasPendingAttempt,
-        shouldStop: () => !mounted || _cancelledByUser,
-      );
-      if (!finished || !mounted || _cancelledByUser) return;
-      TraceLog.log('Terminal: hold over, continuing with the new attempt');
-    }
-    final connected = !LocalPrefs.resetTerminalBeforePayment ||
-        await bridge.prepareTerminal(reason: 'payment start');
-    if (!mounted || _cancelledByUser) return;
-    if (!connected) {
-      TraceLog.log('Terminal: port did not open after a clean reconnect, aborting before charging');
-      setState(() {
-        _failed = true;
-        _statusLabel = l10n.terminalNotConnected;
-      });
-      _scheduleAutoClose();
-      return;
-    }
-
-    final TerminalSession session;
-    try {
-      session = await widget.apiClient.createTerminalSession(widget.orderId, token: authService.token);
-    } catch (e) {
-      TraceLog.log('Terminal: backend session create failed: $e');
-      if (mounted) {
-        setState(() {
-          _failed = true;
-          _statusLabel = l10n.terminalSessionStartFailed(e.toString());
-        });
-        _scheduleAutoClose();
-      }
-      return;
-    }
-    if (!mounted || _cancelledByUser) return;
-    TraceLog.log('Terminal: session ${session.id} created, amount ${session.amount}, prompting card');
-    setState(() {
-      _session = session;
-      _statusLabel = l10n.terminalSwipeCard;
-    });
-
-    final result = await bridge.startPayment(
-      amount: session.amount,
-      reference: session.orderId,
-      timeout: Duration(seconds: LocalPrefs.terminalTimeoutSeconds),
-    );
-    // Cancel ends the bridge's wait at once (see cancelPayment), so the result
-    // can arrive while this dialog is still closing — it is not an answer.
-    if (!mounted || _cancelledByUser) return;
-    TraceLog.log('Terminal: SDK result approved=${result.approved} '
-        'approvalCode=${result.approvalCode} error=${result.errorMessage}');
-
-    // PRODUCT RULE — do not "fix" this away, other agents. Once the terminal
-    // has approved the payment, the customer HAS paid; from their side the
-    // payment is done. If Waha's backend then fails to record it
-    // (confirmTerminalSession below, the "approved but not recorded" state),
-    // that is OUR internal reconciliation problem, never the customer's:
-    //  - we can NOT charge the customer a second time for a failure of ours;
-    //  - we keep selling as long as the kiosk can create orders and the POS
-    //    can process transactions — a backend hiccup does not pause sales.
-    // Until changed by an explicit new request, that is the rule.
-    // TODO: when the payment is recorded late (retry or operator
-    // reconciliation), push a notification to the kiosk so it reloads the
-    // invoice and shows it as paid. Until that exists the order can stay
-    // unpaid on screen although the card was debited, and the screen may
-    // invite the customer to pay again — the rule above is not yet fully met.
-    // TODO: keep a durable local record of every approved-but-unrecorded
-    // payment (session id, approvalCode, rrn, amount) so it can be retried or
-    // reconciled; today it exists only in the trace log
-    // ("PAYMENT LATE APPROVAL" / "approved but confirm-to-backend failed").
-    //
-    // `result` comes from the native side (MainActivity.startPayment), which
-    // answers exactly once, on the first SDK callback that carries a
-    // definite outcome — never on an ack or step code.
-    //
-    // "approved" alone is the terminal's verdict (Geidea SDK's own
-    // TransactionStatusCode, the same field its sample app trusts) — the
-    // approval code is not required. Requiring it here used to cancel the
-    // backend session on a real approval that happened to arrive without one,
-    // which breaks the rule above: an approved payment is never un-approved
-    // by us. Fall back to the RRN, or a fixed placeholder, only to satisfy the
-    // backend's non-empty authCode field — never to decide approved/declined.
-    if (result.approved) {
-      try {
-        final rawCode = result.approvalCode?.trim();
-        final approvalCode = (rawCode == null || rawCode.isEmpty || rawCode == '?') ? null : rawCode;
-        final rrn = result.details['rrn'] as String?;
-        final authCode = approvalCode ?? (rrn != null && rrn.isNotEmpty ? rrn : null) ?? 'APPROVED-NO-CODE';
-        await widget.apiClient.confirmTerminalSession(
-          session.id,
-          authCode: authCode,
-          notes: {...result.details, 'vendor': 'geidea'},
-          token: authService.token,
-        );
-        final order = await widget.apiClient.getOrder(widget.orderId);
-        TraceLog.log('Terminal: session ${session.id} confirmed to backend, order paid');
-        if (mounted) Navigator.pop(context, order);
-      } catch (e) {
-        // Card was charged but the backend couldn't be told — do NOT show
-        // this as a plain decline, the customer's card was already debited.
-        TraceLog.log('Terminal: approved but confirm-to-backend failed: $e');
-        if (mounted) {
-          setState(() {
-            _failed = true;
-            _statusLabel = l10n.terminalApprovedNotRecorded(e.toString());
-          });
-        }
-      }
-    } else {
-      TraceLog.log('Terminal: declined/failed — ${result.errorMessage ?? "no message"}');
-      try { await widget.apiClient.cancelTerminalSession(session.id, token: authService.token); } catch (_) {}
-      if (mounted) {
-        setState(() {
-          _failed = true;
-          _statusLabel = GeideaTerminalBridge.isBusyMessage(result.errorMessage)
-              ? l10n.terminalBusyTryLater(GeideaTerminalBridge.busyCooldown.inSeconds)
-              : (result.errorMessage ?? l10n.paymentDeclined);
-        });
-        _scheduleAutoClose();
-      }
-    }
-  }
-
-  // Best-effort: the native SDK call already in flight can't actually be
-  // aborted mid-transaction (it's a single platform-channel Future, not a
-  // cancellable operation) — this closes the dialog and cancels the
-  // backend session, but a transaction the terminal already approved will
-  // still go through underneath.
-  bool _cancelledByUser = false;
-
-  Future<void> _cancel() async {
-    _cancelledByUser = true;
-    TraceLog.log('Terminal: payment cancelled by user');
-    final id = _session?.id;
-    if (id != null) {
-      try { await widget.apiClient.cancelTerminalSession(id, token: authService.token); } catch (_) {}
-    }
-    unawaited(GeideaTerminalBridge.instance.cancelPayment());
-    if (mounted) Navigator.pop(context, null);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final scheme = Theme.of(context).colorScheme;
-    final done = _failed;
-    return Padding(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          done
-              ? Icon(Icons.error_outline, size: 72, color: scheme.error)
-              : _TerminalIcon(color: scheme.primary),
-          const SizedBox(height: 24),
-          Text(
-            done ? l10n.terminalPaymentFailedTitle : l10n.terminalTitle,
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            _statusLabel ?? '',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: scheme.outline),
-          ),
-          if (!done) ...[
-            const SizedBox(height: 24),
-            const LinearProgressIndicator(),
-          ],
-          const SizedBox(height: 32),
-          if (done)
-            FilledButton(
-                onPressed: () => Navigator.pop(context, null),
-                child: Text(l10n.terminalClose))
-          else
-            OutlinedButton.icon(
-              icon: const Icon(Icons.cancel_outlined),
-              label: Text(l10n.commonCancel),
-              onPressed: _cancel,
-              style: OutlinedButton.styleFrom(foregroundColor: scheme.error),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-// Flutter's built-in Material icon set has no dedicated "handheld
-// card-reader device" glyph — the bare Icons.contactless wave alone reads
-// as a generic NFC symbol, not a terminal, and Icons.point_of_sale reads
-// as a cash register. This composes an actual small device shape instead —
-// now a real PHONE silhouette (a notch/speaker at the top, a home-indicator
-// bar at the bottom, per the user's request), since the physical Geidea
-// terminal (PAX A920Pro) is itself phone-shaped — not the earlier abstract
-// "card reader + keypad dots" look. No fill behind the contactless icon —
-// just the icon on the card's own background. No external asset needed.
-class _TerminalIcon extends StatelessWidget {
-  final Color color;
-  const _TerminalIcon({required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return SizedBox(
-      width: 60,
-      height: 96,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
-        decoration: BoxDecoration(
-          color: scheme.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color, width: 2.5),
-        ),
-        child: Column(
-          children: [
-            // Notch/speaker — reads as a phone's top edge.
-            Container(
-              width: 18,
-              height: 4,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            // Screen — the tap-to-pay wave, no fill behind it.
-            Expanded(
-              child: Container(
-                width: double.infinity,
-                alignment: Alignment.center,
-                child: Icon(Icons.contactless, color: color, size: 30),
-              ),
-            ),
-            // Home indicator — reads as a phone's bottom edge.
-            Container(
-              width: 24,
-              height: 3,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

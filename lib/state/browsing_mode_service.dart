@@ -156,10 +156,11 @@ BrowsingMode? parseBrowsingMode(String? name) {
 /// Global instances. Provided reactively via ChangeNotifierProvider.value
 /// in main.dart; read directly (no context needed) from onGenerateRoute.
 ///
-/// Kiosk is the out-of-the-box default: a fresh install with no persisted
-/// mode and no --dart-define=APP_MODE (main.dart's _resolveStartupConfig)
-/// falls through to whatever this is constructed with. The device this
-/// ships on is a kiosk unless someone deliberately configures otherwise —
-/// it should never boot into unrestricted Normal mode by default.
-final browsingModeService = BrowsingModeService(BrowsingMode.kiosk);
+/// Normal is the out-of-the-box default: a fresh install with no persisted
+/// mode, no `?mode=` URL param and no --dart-define=APP_MODE (main.dart's
+/// _resolveStartupConfig) falls through to whatever this is constructed
+/// with. waha_client has no Kiosk mode (no device login screen for it to
+/// land on) — Shopping is only ever entered via the `?mode=shopping` URL
+/// override, never the default.
+final browsingModeService = BrowsingModeService(BrowsingMode.normal);
 final kioskTimerConfig = KioskTimerConfig();
