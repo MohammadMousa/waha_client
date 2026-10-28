@@ -19,6 +19,7 @@ import 'state/browsing_mode_service.dart';
 import 'state/locale_service.dart';
 import 'state/order_flow_controller.dart';
 import 'state/permission_service.dart';
+import 'state/simulator_service.dart';
 import 'state/startup_connection.dart';
 import 'widgets/connection_gate_overlay.dart';
 import 'state/store_config_service.dart';
@@ -49,6 +50,7 @@ void main() {
     await LocalPrefs.init();
     await AppInfo.init();
     await AppConfig.initConnection();
+    await AppConfig.loadRuntimeConfig();
     const loggingDefine = bool.fromEnvironment('LOGGING');
     if (loggingDefine && !LocalPrefs.loggingEnabled) {
       await LocalPrefs.setLoggingEnabled(true);
@@ -172,6 +174,7 @@ class WahaApp extends StatelessWidget {
         ChangeNotifierProvider.value(value: localeService),
         ChangeNotifierProvider.value(value: authService),
         ChangeNotifierProvider.value(value: permissionService),
+        ChangeNotifierProvider(create: (_) => SimulatorService()),
       ],
       // Builder, not MaterialApp directly — MaterialApp needs a context
       // BELOW MultiProvider's providers to `watch` LocaleService for the

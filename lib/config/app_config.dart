@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:http/http.dart' as http;
 
 import '../state/browsing_mode_service.dart';
 import 'connection_settings.dart';
@@ -13,12 +15,40 @@ class AppConfig {
 
   static const _buildDefine = String.fromEnvironment('API_BASE_URL');
 
+  /// Web only: the host read from the deployed `config.json` (see
+  /// [loadRuntimeConfig]). Empty on other platforms or when the file is
+  /// missing or unusable.
+  static String _runtimeApiBaseUrl = '';
+
+  /// Web only: reads `config.json` (`{"apiBaseUrl": "https://..."}`) served
+  /// next to the app, so the host can be changed on the server without
+  /// rebuilding or redeploying. The `?t=` stamp avoids a cached copy. Any
+  /// failure just leaves the value empty and the next default applies.
+  /// Call once at startup, before the first API call.
+  static Future<void> loadRuntimeConfig() async {
+    if (!kIsWeb) return;
+    try {
+      final res = await http.get(
+        Uri.parse('config.json?t=${DateTime.now().millisecondsSinceEpoch}'),
+      );
+      if (res.statusCode != 200) return;
+      final data = json.decode(utf8.decode(res.bodyBytes));
+      final url = (data is Map ? data['apiBaseUrl'] : null) as String?;
+      if (url != null && url.trim().startsWith('http')) {
+        _runtimeApiBaseUrl = url.trim().replaceAll(RegExp(r'/+$'), '');
+      }
+    } catch (_) {
+      _runtimeApiBaseUrl = '';
+    }
+  }
+
   /// Resolves in this order:
   /// 1. Custom Connection, when switched ON in Settings → Server Connection
-  ///    (and its fields form a valid address). Overrides a build-time URL.
-  /// 2. `--dart-define=API_BASE_URL=...` at build/run time — the project/build
+  ///    (and its fields form a valid address). Overrides everything below.
+  /// 2. Web only: the deployed `config.json` (see [loadRuntimeConfig]).
+  /// 3. `--dart-define=API_BASE_URL=...` at build/run time — the project/build
   ///    default, and what Custom Connection OFF returns to.
-  /// 3. Platform default — emulator alias on Android, origin host on web,
+  /// 4. Platform default — emulator alias on Android, origin host on web,
   ///    localhost elsewhere. On a real Android device this is unreachable, so
   ///    pass API_BASE_URL or turn Custom Connection on.
   ///
@@ -26,14 +56,17 @@ class AppConfig {
   static String get apiBaseUrl => resolveApiBaseUrl(
         customActive: connection.customActive,
         customUrl: connection.custom.url,
+        runtimeConfig: _runtimeApiBaseUrl,
         buildDefine: _buildDefine,
         platformDefault: _platformDefault,
       );
 
-  /// The default used when Custom Connection is OFF (build define, else
-  /// platform default). Shown in Settings so the operator sees what OFF means.
-  static String get defaultApiBaseUrl =>
-      _buildDefine.isNotEmpty ? _buildDefine : _platformDefault;
+  /// The default used when Custom Connection is OFF (deployed config, else
+  /// build define, else platform default). Shown in Settings so the operator
+  /// sees what OFF means.
+  static String get defaultApiBaseUrl => _runtimeApiBaseUrl.isNotEmpty
+      ? _runtimeApiBaseUrl
+      : (_buildDefine.isNotEmpty ? _buildDefine : _platformDefault);
 
   static String get _platformDefault {
     if (kIsWeb) return 'http://${Uri.base.host}:8081';
@@ -47,8 +80,10 @@ class AppConfig {
     required String customUrl,
     required String buildDefine,
     required String platformDefault,
+    String runtimeConfig = '',
   }) {
     if (customActive && customUrl.isNotEmpty) return customUrl;
+    if (runtimeConfig.isNotEmpty) return runtimeConfig;
     if (buildDefine.isNotEmpty) return buildDefine;
     return platformDefault;
   }

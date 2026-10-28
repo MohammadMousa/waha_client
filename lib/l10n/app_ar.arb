@@ -21,6 +21,9 @@
   "cartEmptySubtitle": "امسح منتجًا لإضافته هنا.",
   "cartSubtotal": "المجموع الفرعي",
   "cartTax": "الضريبة",
+  "cartDiscount": "الخصم",
+  "cartBeforeDiscount": "قبل الخصم",
+  "cartZeroDueHint": "أضف المزيد من المنتجات للاستفادة من العرض",
   "cartTotal": "الإجمالي",
   "checkoutButton": "الشراء والدفع",
 

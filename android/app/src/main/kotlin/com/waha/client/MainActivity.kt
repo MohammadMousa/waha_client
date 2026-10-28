@@ -1,4 +1,4 @@
-package com.example.waha_platform
+package com.waha.client
 
 import io.flutter.embedding.android.FlutterActivity
 

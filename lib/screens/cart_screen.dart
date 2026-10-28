@@ -10,7 +10,10 @@ import '../services/local_prefs.dart';
 import '../state/browsing_mode_service.dart';
 import '../state/locale_service.dart';
 import '../state/order_flow_controller.dart';
+import '../state/permission_service.dart';
+import '../state/simulator_service.dart';
 import '../state/store_config_service.dart';
+import '../utils/money.dart';
 import '../utils/scan_actions.dart';
 import '../widgets/cart_line_tile.dart';
 import '../widgets/waha_bottom_nav.dart';
@@ -23,6 +26,25 @@ class CartScreen extends StatefulWidget {
 }
 
 class _CartScreenState extends State<CartScreen> {
+  // Secret gesture: 10 taps anywhere on the cart body within 3 s. Does
+  // nothing unless the user holds an edit permission — then it reveals the
+  // dev tools and opens Settings (no PIN).
+  int _tapCount = 0;
+  Timer? _tapTimer;
+
+  void _onBodyTap() {
+    if (!permissionService.canEditAnything) return;
+    _tapTimer?.cancel();
+    _tapCount++;
+    if (_tapCount >= 10) {
+      _tapCount = 0;
+      context.read<SimulatorService>().showDevTools();
+      Navigator.of(context).pushNamed(Routes.settings);
+    } else {
+      _tapTimer = Timer(const Duration(seconds: 3), () => _tapCount = 0);
+    }
+  }
+
   final ScrollController _scrollController = ScrollController();
   final Map<int, GlobalKey> _itemKeys = {};
   final Set<int> _flashingIds = {};
@@ -70,6 +92,7 @@ class _CartScreenState extends State<CartScreen> {
     _flow.removeListener(_onFlowChanged);
     _scrollController.dispose();
     _flashTimer?.cancel();
+    _tapTimer?.cancel();
     super.dispose();
   }
 
@@ -111,6 +134,7 @@ class _CartScreenState extends State<CartScreen> {
           showBottomNav ? const WahaBottomNav(current: BottomNavTab.cart) : null,
       body: GestureDetector(
         behavior: HitTestBehavior.translucent,
+        onTap: _onBodyTap,
         child: Column(
         children: [
           if (flow.lastError != null)
@@ -200,9 +224,14 @@ class _CartScreenState extends State<CartScreen> {
             subtotal: quote?.subtotal ?? 0.0,
             tax: quote?.tax ?? 0.0,
             total: quote?.total ?? 0.0,
+            discount: quote?.discountAmount ?? 0.0,
             currency: currency,
             l10n: l10n,
-            canCheckout: flow.cart.isNotEmpty && !flow.busy,
+            // A cart the offers bring down to nothing due is not an order.
+            zeroDue: quote != null && flow.cart.isNotEmpty && quote.total <= 0,
+            canCheckout: flow.cart.isNotEmpty &&
+                !flow.busy &&
+                !(quote != null && quote.total <= 0),
             onCancel: () {
               context.read<OrderFlowController>().clearCart();
               goHomeKeepingLanding(Navigator.of(context));
@@ -222,21 +251,25 @@ class _CartScreenState extends State<CartScreen> {
 
 class _CartSummaryCard extends StatefulWidget {
   final double subtotal;
+  final double discount;
   final double tax;
   final double total;
   final String? currency;
   final AppLocalizations l10n;
   final bool canCheckout;
+  final bool zeroDue;
   final VoidCallback onCancel;
   final VoidCallback onCheckout;
 
   const _CartSummaryCard({
     required this.subtotal,
+    required this.discount,
     required this.tax,
     required this.total,
     required this.currency,
     required this.l10n,
     required this.canCheckout,
+    required this.zeroDue,
     required this.onCancel,
     required this.onCheckout,
   });
@@ -302,6 +335,14 @@ class _CartSummaryCardState extends State<_CartSummaryCard> {
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
                     child: Column(
                       children: [
+                        if (widget.discount > 0) ...[
+                          _SummaryRow(
+                            l10n.cartDiscount,
+                            -widget.discount,
+                            currency: widget.currency,
+                          ),
+                          const SizedBox(height: 4),
+                        ],
                         _SummaryRow(l10n.cartSubtotal, widget.subtotal, currency: widget.currency),
                         const SizedBox(height: 4),
                         _SummaryRow(l10n.cartTax, widget.tax, currency: widget.currency),
@@ -309,6 +350,16 @@ class _CartSummaryCardState extends State<_CartSummaryCard> {
                     ),
                   ),
                 ],
+                if (widget.zeroDue)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                    child: Text(
+                      l10n.cartZeroDueHint,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          color: scheme.error, fontWeight: FontWeight.w600),
+                    ),
+                  ),
                 const Divider(height: 1),
                 Row(
                   children: [
@@ -376,12 +427,4 @@ class _SummaryRow extends StatelessWidget {
   }
 }
 
-String _fmt(double amount, String? currency) {
-  final s = amount.toStringAsFixed(2);
-  if (currency == null) return s;
-  final u = currency.toUpperCase();
-  if (u == 'SAR') return '$s ﷼';
-  if (u == 'USD') return '\$$s';
-  if (u == 'EUR') return '€$s';
-  return '$s $currency';
-}
+String _fmt(double amount, String? currency) => formatMoney(amount, currency);

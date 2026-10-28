@@ -194,6 +194,24 @@ abstract class AppLocalizations {
   /// **'Tax'**
   String get cartTax;
 
+  /// No description provided for @cartDiscount.
+  ///
+  /// In en, this message translates to:
+  /// **'Discount'**
+  String get cartDiscount;
+
+  /// No description provided for @cartBeforeDiscount.
+  ///
+  /// In en, this message translates to:
+  /// **'Before Discount'**
+  String get cartBeforeDiscount;
+
+  /// No description provided for @cartZeroDueHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Add more items to benefit from the offer'**
+  String get cartZeroDueHint;
+
   /// No description provided for @cartTotal.
   ///
   /// In en, this message translates to:

@@ -505,7 +505,11 @@ class _WebViewLandingState extends State<_WebViewLanding> {
       case 'orders_screen':
         Navigator.of(context).pushNamed(Routes.orders);
       case 'settings_screen':
-        Navigator.of(context).pushNamed(Routes.settings);
+        // Settings is for users with an edit permission only; the route
+        // guard enforces this too, this just avoids a pointless bounce.
+        if (permissionService.canEditAnything) {
+          Navigator.of(context).pushNamed(Routes.settings);
+        }
     }
   }
 

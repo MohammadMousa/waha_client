@@ -11,7 +11,7 @@
          real vendor PDF doesn't list one either); USB host access is
          granted at runtime by the SDK itself via UsbManager. -->
     <application
-        android:label="Waha Kiosk"
+        android:label="Waha"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true"

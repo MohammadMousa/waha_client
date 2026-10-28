@@ -58,6 +58,15 @@ class AppLocalizationsAr extends AppLocalizations {
   String get cartTax => 'الضريبة';
 
   @override
+  String get cartDiscount => 'الخصم';
+
+  @override
+  String get cartBeforeDiscount => 'قبل الخصم';
+
+  @override
+  String get cartZeroDueHint => 'أضف المزيد من المنتجات للاستفادة من العرض';
+
+  @override
   String get cartTotal => 'الإجمالي';
 
   @override

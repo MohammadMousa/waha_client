@@ -11,7 +11,6 @@ import '../screens/login_screen.dart';
 import '../screens/orders_screen.dart';
 import '../screens/pay_screen.dart';
 import '../screens/product_detail_screen.dart';
-import '../screens/profile_screen.dart';
 import '../screens/register_screen.dart';
 import '../screens/scan_screen.dart';
 import '../screens/search_screen.dart';
@@ -19,7 +18,9 @@ import '../screens/settings_screen.dart';
 import '../screens/store_picker_screen.dart';
 import '../screens/success_screen.dart';
 import '../state/browsing_mode_service.dart';
+import '../state/permission_service.dart';
 import '../widgets/hardware_scan_listener.dart';
+import '../widgets/simulator_overlay.dart';
 
 /// Lets code outside the routed page tree push/pop navigation and know
 /// which route is on top, without needing a per-route BuildContext of its
@@ -90,7 +91,6 @@ class Routes {
   static const pay = '/pay';
   static const success = '/success';
   static const settings = '/settings';
-  static const profile = '/profile';
   static const browse = '/browse';
   static const productDetail = '/browse/product';
   static const register = '/register';
@@ -112,7 +112,7 @@ class Routes {
   // can navigate to catalog screens from Shopping mode without being
   // blocked by the nav guard.
   static const kioskAllowlist = {landing, scan, cart, checkout, invoice, pay, success,
-      browse, categories, search, productDetail, settings};
+      browse, categories, search, productDetail};
 
   /// Reused (see onGenerateRoute) to decide where the ambient hardware-
   /// scanner listener mounts: the same product/cart screens are exactly
@@ -139,8 +139,16 @@ Route<dynamic> onGenerateRoute(RouteSettings settings) {
   final mode = browsingModeService.mode;
   final isRestrictedNav = mode == BrowsingMode.shopping;
 
+  // Settings is for users who hold an edit permission only, in every mode
+  // (a developer needs it in Shopping mode too, to switch back). Anyone else
+  // bounces to Landing, whether or not a button was shown.
+  final settingsDenied =
+      name == Routes.settings && !permissionService.canEditAnything;
+  final allowedInRestricted = Routes.kioskAllowlist.contains(name) ||
+      (name == Routes.settings && permissionService.canEditAnything);
+
   Widget page;
-  if (isRestrictedNav && !Routes.kioskAllowlist.contains(name)) {
+  if (settingsDenied || (isRestrictedNav && !allowedInRestricted)) {
     page = const LandingScreen();
   } else {
     switch (name) {
@@ -170,9 +178,6 @@ Route<dynamic> onGenerateRoute(RouteSettings settings) {
         break;
       case Routes.settings:
         page = const SettingsScreen();
-        break;
-      case Routes.profile:
-        page = const ProfileScreen();
         break;
       case Routes.browse:
         final browseArgs = settings.arguments;
@@ -221,6 +226,9 @@ Route<dynamic> onGenerateRoute(RouteSettings settings) {
         // TextField holding focus, so it survives navigation away from
         // Landing.
         if (Routes.scanEnabledRoutes.contains(name)) const HardwareScanListener(),
+        // Developer tools — draws nothing unless the user holds an edit
+        // permission (see SimulatorOverlay).
+        const SimulatorOverlay(),
       ],
     ),
   );

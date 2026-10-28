@@ -20,6 +20,9 @@ enum _ServerPreset {
   emulator('Emulator — 10.0.2.2', 'http', '10.0.2.2', 8081),
   localhost('Localhost (this device)', 'http', '127.0.0.1', 8081),
   lan('LAN — 192.168.1.x', 'http', '192.168.1.', 8081),
+  hospitality('api.hospitalitysourcesllc.com', 'https',
+      'api.hospitalitysourcesllc.com', 443),
+  waha1('waha1.duckdns.org', 'https', 'waha1.duckdns.org', 443),
   custom('Custom', 'http', '', 8081);
 
   final String label;

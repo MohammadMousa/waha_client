@@ -5,6 +5,7 @@ import '../models/cart_item.dart';
 import '../models/quote.dart';
 import '../state/locale_service.dart';
 import '../utils/locale_name.dart';
+import '../utils/money.dart';
 import 'product_image.dart';
 import 'quantity_stepper.dart';
 
@@ -35,6 +36,11 @@ class CartLineTile extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final unitPrice = line?.unitPrice;
     final lineTotal = line?.lineTotal;
+    final discount = line?.discountAmount ?? 0.0;
+    final hasDiscount = lineTotal != null && discount > 0;
+    // Server-calculated: net = before-offer total minus the line's discount.
+    final shownTotal = hasDiscount ? lineTotal - discount : lineTotal;
+    final hasOffer = line?.offer != null;
 
     return Card(
       elevation: 0,
@@ -68,11 +74,29 @@ class CartLineTile extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     unitPrice != null
-                        ? '${unitPrice.toStringAsFixed(2)}${currency != null ? ' $currency' : ''} ${l10n.perUnit}'
+                        ? '${formatMoney(unitPrice, currency)} ${l10n.perUnit}'
                         : 'Calculating price…',
                     style: theme.textTheme.bodySmall
                         ?.copyWith(color: theme.colorScheme.outline),
                   ),
+                  if (hasOffer) ...[
+                    const SizedBox(height: 4),
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade600.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        l10n.cartBeforeDiscount,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: Colors.green.shade800,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 10),
                   QuantityStepper(
                     qty: item.quantity,
@@ -94,25 +118,20 @@ class CartLineTile extends StatelessWidget {
                   onPressed: onRemove,
                 ),
                 const SizedBox(height: 14),
-                if (lineTotal != null)
-                  RichText(
-                    textAlign: TextAlign.end,
-                    text: TextSpan(
-                      children: [
-                        TextSpan(
-                          text: lineTotal.toStringAsFixed(2),
-                          style: theme.textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        if (currency != null)
-                          TextSpan(
-                            text: ' $currency',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.outline,
-                            ),
-                          ),
-                      ],
+                if (hasDiscount)
+                  Text(
+                    formatMoney(lineTotal, currency),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.outline,
+                      decoration: TextDecoration.lineThrough,
                     ),
+                  ),
+                if (shownTotal != null)
+                  Text(
+                    formatMoney(shownTotal, currency),
+                    textAlign: TextAlign.end,
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold),
                   )
                 else
                   Text('—', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
