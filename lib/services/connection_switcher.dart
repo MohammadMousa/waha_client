@@ -9,6 +9,7 @@ import '../state/order_flow_controller.dart';
 import '../state/store_config_service.dart';
 import 'api_client.dart';
 import 'api_exceptions.dart';
+import 'device_info_service.dart';
 import 'local_prefs.dart';
 
 /// What the operator typed to sign in to the new server. Used once, never
@@ -148,13 +149,14 @@ class ConnectionSwitcher {
       AppConfig.connection.save(enabled: enabled, custom: custom);
 
   static Future<AuthSession> _signIn(
-      ApiClient api, BrowsingMode mode, SwitchCredentials? c) {
+      ApiClient api, BrowsingMode mode, SwitchCredentials? c) async {
+    final device = await DeviceInfoService.load();
     switch (mode) {
       case BrowsingMode.kiosk:
         return api.kioskLogin(c!.username.trim(), c.secret);
       case BrowsingMode.normal:
         return api.login(c!.username.trim(), c.secret,
-            sessionProperties: {'mode': mode.name.toUpperCase()});
+            sessionProperties: {'mode': mode.name.toUpperCase(), ...device});
       case BrowsingMode.shopping:
         return api.guest();
     }

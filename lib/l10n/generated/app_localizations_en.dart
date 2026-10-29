@@ -283,6 +283,32 @@ class AppLocalizationsEn extends AppLocalizations {
       'Not logged in — guest checkout still works.';
 
   @override
+  String get sessionsTitle => 'Active sessions';
+
+  @override
+  String get sessionsThisDevice => 'This device';
+
+  @override
+  String get sessionsSignOutOthers => 'Sign out other devices';
+
+  @override
+  String get sessionsSignOut => 'Sign out';
+
+  @override
+  String get sessionsEmpty => 'No sessions found';
+
+  @override
+  String get sessionsUnavailable => 'Not available on this server yet';
+
+  @override
+  String sessionsLastSeen(String when) {
+    return 'Last active $when';
+  }
+
+  @override
+  String get sessionsOthersDone => 'Other devices signed out';
+
+  @override
   String get profileLogout => 'Log Out';
 
   @override

@@ -282,6 +282,32 @@ class AppLocalizationsAr extends AppLocalizations {
       'غير مسجّل الدخول — الشراء كضيف لا يزال يعمل.';
 
   @override
+  String get sessionsTitle => 'الجلسات النشطة';
+
+  @override
+  String get sessionsThisDevice => 'هذا الجهاز';
+
+  @override
+  String get sessionsSignOutOthers => 'تسجيل الخروج من الأجهزة الأخرى';
+
+  @override
+  String get sessionsSignOut => 'تسجيل الخروج';
+
+  @override
+  String get sessionsEmpty => 'لا توجد جلسات';
+
+  @override
+  String get sessionsUnavailable => 'غير متاح على هذا الخادم بعد';
+
+  @override
+  String sessionsLastSeen(String when) {
+    return 'آخر نشاط $when';
+  }
+
+  @override
+  String get sessionsOthersDone => 'تم تسجيل الخروج من الأجهزة الأخرى';
+
+  @override
   String get profileLogout => 'تسجيل الخروج';
 
   @override

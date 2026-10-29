@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../router/app_router.dart';
+import '../screens/sessions_screen.dart';
 import '../services/api_client.dart';
 import '../state/auth_service.dart';
 import '../state/locale_service.dart';
@@ -144,6 +145,18 @@ class _ProfileSheetState extends State<ProfileSheet> {
                 onTap: () {
                   Navigator.of(context).pop();
                   Navigator.of(context).pushNamed(Routes.orders);
+                },
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.devices_outlined, color: scheme.primary),
+                title: Text(l10n.sessionsTitle),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  final nav = Navigator.of(context);
+                  nav.pop();
+                  nav.push(MaterialPageRoute(
+                      builder: (_) => const SessionsScreen()));
                 },
               ),
               const SizedBox(height: 8),

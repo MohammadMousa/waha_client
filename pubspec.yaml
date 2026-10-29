@@ -25,6 +25,7 @@ dependencies:
   webview_flutter_web: ^0.2.3+4
   cached_network_image: ^4.0.0
   package_info_plus: ^9.0.1
+  device_info_plus: ^12.4.0
 
 dev_dependencies:
   flutter_test:

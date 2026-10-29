@@ -190,6 +190,7 @@ class ApiClient {
         body: jsonEncode({
           'username': username,
           'password': password,
+          'appVersion': AppInfo.version,
           if (sessionProperties != null) 'sessionProperties': sessionProperties,
         }),
       ),
@@ -259,10 +260,51 @@ class ApiClient {
     throw UnknownApiException(resp.statusCode, msg);
   }
 
+  // GET /api/auth/me/sessions — the signed-in user's own sessions
+  Future<List<Map<String, dynamic>>> mySessions(String token) async {
+    final resp = await _send(() =>
+        _http.get(_uri('/api/auth/me/sessions'), headers: _headers(token: token)));
+    if (resp.statusCode == 200) {
+      final body = jsonDecode(resp.body) as Map<String, dynamic>;
+      return (body['items'] as List).cast<Map<String, dynamic>>();
+    }
+    final msg = _extractMessage(resp);
+    if (resp.statusCode == 401) throw UnauthorizedException(401, msg);
+    throw UnknownApiException(resp.statusCode, msg);
+  }
+
+  // DELETE /api/auth/me/sessions/{ref}
+  Future<void> endMySession(String token, String ref) async {
+    final resp = await _send(() => _http.delete(
+        _uri('/api/auth/me/sessions/${Uri.encodeComponent(ref)}'),
+        headers: _headers(token: token)));
+    if (resp.statusCode == 200) return;
+    final msg = _extractMessage(resp);
+    if (resp.statusCode == 401) throw UnauthorizedException(401, msg);
+    throw UnknownApiException(resp.statusCode, msg);
+  }
+
+  // POST /api/auth/me/sessions/sign-out-others
+  Future<int> signOutOtherSessions(String token) async {
+    final resp = await _send(() => _http.post(
+        _uri('/api/auth/me/sessions/sign-out-others'),
+        headers: _headers(token: token)));
+    if (resp.statusCode == 200) {
+      final body = jsonDecode(resp.body) as Map<String, dynamic>;
+      return (body['signedOut'] as num?)?.toInt() ?? 0;
+    }
+    final msg = _extractMessage(resp);
+    if (resp.statusCode == 401) throw UnauthorizedException(401, msg);
+    throw UnknownApiException(resp.statusCode, msg);
+  }
+
   // GET /api/auth/me — session check on app start
   Future<AuthSession> me(String token) async {
     final resp = await _send(
-      () => _http.get(_uri('/api/auth/me'), headers: _headers(token: token)),
+      () => _http.get(_uri('/api/auth/me'), headers: {
+        ..._headers(token: token),
+        'X-App-Version': AppInfo.version,
+      }),
     );
     if (resp.statusCode == 200) {
       return AuthSession.fromJson(

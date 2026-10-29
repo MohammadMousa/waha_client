@@ -6,6 +6,7 @@ import '../models/auth_session.dart';
 import '../models/store.dart';
 import '../services/api_client.dart';
 import '../services/api_exceptions.dart';
+import '../services/device_info_service.dart';
 import '../services/local_prefs.dart';
 import 'browsing_mode_service.dart';
 import 'locale_service.dart';
@@ -95,8 +96,9 @@ class AuthService extends ChangeNotifier {
 
   Future<void> login(ApiClient api, String username, String password) async {
     final currentMode = browsingModeService.mode.name.toUpperCase();
-    final session = await api
-        .login(username, password, sessionProperties: {'mode': currentMode});
+    final device = await DeviceInfoService.load();
+    final session = await api.login(username, password,
+        sessionProperties: {'mode': currentMode, ...device});
     _applySession(session, tokenOverride: session.token);
     await LocalPrefs.setAuthToken(session.token!);
     notifyListeners();
@@ -188,8 +190,9 @@ class AuthService extends ChangeNotifier {
     final t = token;
     if (t == null) throw StateError('selectStore() called while logged out');
     final currentMode = browsingModeService.mode.name.toUpperCase();
-    final session = await api
-        .selectStore(t, storeId, sessionProperties: {'mode': currentMode});
+    final device = await DeviceInfoService.load();
+    final session = await api.selectStore(t, storeId,
+        sessionProperties: {'mode': currentMode, ...device});
     _applySession(session);
     notifyListeners();
   }

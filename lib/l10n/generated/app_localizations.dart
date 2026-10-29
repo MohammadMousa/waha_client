@@ -626,6 +626,54 @@ abstract class AppLocalizations {
   /// **'Not logged in — guest checkout still works.'**
   String get profileGuestMessage;
 
+  /// No description provided for @sessionsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Active sessions'**
+  String get sessionsTitle;
+
+  /// No description provided for @sessionsThisDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'This device'**
+  String get sessionsThisDevice;
+
+  /// No description provided for @sessionsSignOutOthers.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out other devices'**
+  String get sessionsSignOutOthers;
+
+  /// No description provided for @sessionsSignOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out'**
+  String get sessionsSignOut;
+
+  /// No description provided for @sessionsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No sessions found'**
+  String get sessionsEmpty;
+
+  /// No description provided for @sessionsUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Not available on this server yet'**
+  String get sessionsUnavailable;
+
+  /// No description provided for @sessionsLastSeen.
+  ///
+  /// In en, this message translates to:
+  /// **'Last active {when}'**
+  String sessionsLastSeen(String when);
+
+  /// No description provided for @sessionsOthersDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Other devices signed out'**
+  String get sessionsOthersDone;
+
   /// No description provided for @profileLogout.
   ///
   /// In en, this message translates to:
