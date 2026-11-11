@@ -1,7 +1,7 @@
 name: waha_client
 description: Waha customer app (online ordering + on-site shopping-mode via a customer's own phone) — web, Android, Linux
 publish_to: 'none'
-version: 1.0.1+20261029
+version: 1.0.2+20261111
 
 environment:
   sdk: '>=3.3.0 <4.0.0'

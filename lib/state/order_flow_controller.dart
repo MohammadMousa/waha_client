@@ -346,9 +346,8 @@ class OrderFlowController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Starts a Stripe/MyFatoorah session. For REDIRECT provider, returns a URL
-  /// to open in the browser. For QR_LINK provider, also returns qrCodeDataUri
-  /// and expiresAt for the kiosk QR screen.
+  /// Starts a hosted-checkout session and returns the URL to open in the
+  /// browser.
   Future<PaymentSessionResult> createPaymentSession(
       {required String provider, required String providerMode}) async {
     if (orderId == null) {

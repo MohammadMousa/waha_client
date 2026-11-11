@@ -123,7 +123,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
     // Every payment path funnels through here — the single choke point to
     // keep OrderFlowController.order in sync, which KioskIdleGuard reads to
     // suspend its own timer once paid. pay()/refreshOrder() already do this
-    // for simulated/redirect/QR flows; terminal payment resolves its own
+    // for simulated/redirect flows; terminal payment resolves its own
     // paid order locally and never touches the controller otherwise.
     context.read<OrderFlowController>().setOrder(order);
     setState(() => _phase = _Phase.paid);
@@ -171,7 +171,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
     }
   }
 
-  // ── Redirect / QR payment ────────────────────────────────────────────────────
+  // ── Redirect payment ────────────────────────────────────────────────────
 
   Future<void> _payWithRedirect(PaymentMethod method) async {
     // Guard against double-tap: the onTap closure captures _launchingSession at
@@ -188,20 +188,6 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
           provider: method.key, providerMode: method.provider);
 
       if (!mounted) return;
-
-      // waha_client has no fixed on-site screen for a customer to scan a QR
-      // from — the customer is always already on the device that would do
-      // the scanning. QR_LINK (scan THIS screen with a separate phone) and
-      // PAYMENT_URL (same idea, a merchant-configured link) only make sense
-      // on a kiosk and aren't handled here; the backend's payment_methods
-      // config for a non-kiosk client is not expected to offer either.
-      if (method.isQrLink || method.isPaymentUrl) {
-        setState(() {
-          _launchingSession = false;
-          _sessionError = 'This payment method is not supported here.';
-        });
-        return;
-      }
 
       // Standard browser redirect flow (REDIRECT provider — Stripe,
       // MyFatoorah, or any other hosted-checkout aggregator the backend has
@@ -356,10 +342,8 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
     if (method.provider == 'SIMULATED') {
       future = _paySimulated(outcome: 'SUCCESS');
     } else {
-      // TERMINAL (card-present, kiosk only) and PAYMENT_URL/QR_LINK
-      // (customer scans this screen with a separate phone, kiosk only)
-      // aren't offered here — waha_client only has the browser-redirect
-      // flow, which _payWithRedirect itself refuses gracefully for either.
+      // waha_client only has the browser-redirect flow (the card terminal
+      // and the QR kinds belong to the kiosk app).
       future = _payWithRedirect(method);
     }
     future.whenComplete(() => _methodHandling = false);
@@ -440,14 +424,13 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
   }
 
   IconData _iconForMethod(PaymentMethod method) {
-    if (method.isPaymentUrl) return Icons.phone_android_outlined;
     if (method.provider == 'TERMINAL') return Icons.contactless_outlined;
-    return switch (method.key.replaceAll('_qr', '')) {
+    return switch (method.key) {
       'simulated' => Icons.phone_android_outlined,
       'stripe' => Icons.credit_card,
       'myfatoorah' => Icons.account_balance_outlined,
-      _ => (method.provider == 'REDIRECT' || method.provider == 'QR_LINK')
-          ? Icons.qr_code_outlined
+      _ => method.provider == 'REDIRECT'
+          ? Icons.open_in_browser_outlined
           : Icons.payment_outlined,
     };
   }

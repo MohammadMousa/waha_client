@@ -763,8 +763,7 @@ class ApiClient {
   }
 
   // POST /api/orders/{id}/payment-session
-  // providerMode: 'REDIRECT' (normal/shopping) or 'QR_LINK' (kiosk).
-  // QR_LINK responses include qrCodeDataUri + expiresAt.
+  // providerMode: 'REDIRECT' (browser redirect).
   Future<PaymentSessionResult> createPaymentSession(String orderId,
       {required String provider, required String providerMode}) async {
     final resp = await _send(
@@ -1177,23 +1176,11 @@ class ApiClient {
 
 class PaymentSessionResult {
   final String redirectUrl;
-  final String? qrCodeDataUri;
-  final DateTime? expiresAt;
 
-  const PaymentSessionResult({
-    required this.redirectUrl,
-    this.qrCodeDataUri,
-    this.expiresAt,
-  });
+  const PaymentSessionResult({required this.redirectUrl});
 
   factory PaymentSessionResult.fromJson(Map<String, dynamic> json) =>
-      PaymentSessionResult(
-        redirectUrl: json['redirectUrl'] as String,
-        qrCodeDataUri: json['qrCodeDataUri'] as String?,
-        expiresAt: json['expiresAt'] != null
-            ? DateTime.parse(json['expiresAt'] as String)
-            : null,
-      );
+      PaymentSessionResult(redirectUrl: json['redirectUrl'] as String);
 }
 
 class AdminPaymentMethodView {
