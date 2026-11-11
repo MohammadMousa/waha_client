@@ -36,7 +36,7 @@ class SimulatorOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sim = context.watch<SimulatorService>();
-    if (!context.watch<PermissionService>().canEditAnything) {
+    if (!context.watch<PermissionService>().canOpenDevTools) {
       return const SizedBox.shrink();
     }
     // The footer has its own switch and shows exactly when that is ON,

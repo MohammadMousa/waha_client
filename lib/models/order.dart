@@ -1,3 +1,4 @@
+import 'address.dart';
 import 'quote.dart';
 
 /// Returned by POST /api/orders, GET /api/orders/{id}, GET /api/orders,
@@ -23,6 +24,12 @@ class WahaOrder {
   /// Total discount from all offers, and the invoice-level offer if any.
   final double discountAmount;
   final AppliedOffer? invoiceOffer;
+  final AppliedCoupon? coupon;
+
+  /// Online orders only (null for shopping/kiosk orders).
+  final String? shippingMethod;
+  final double shippingAmount;
+  final Address? shippingAddress;
 
   const WahaOrder({
     required this.orderId,
@@ -43,6 +50,10 @@ class WahaOrder {
     required this.items,
     this.discountAmount = 0.0,
     this.invoiceOffer,
+    this.coupon,
+    this.shippingMethod,
+    this.shippingAmount = 0.0,
+    this.shippingAddress,
   });
 
   factory WahaOrder.fromJson(Map<String, dynamic> json) => WahaOrder(
@@ -66,5 +77,11 @@ class WahaOrder {
             .toList(),
         discountAmount: (json['discountAmount'] as num?)?.toDouble() ?? 0.0,
         invoiceOffer: AppliedOffer.fromJson(json['invoiceOffer']),
+        coupon: AppliedCoupon.fromJson(json['coupon']),
+        shippingMethod: json['shippingMethod'] as String?,
+        shippingAmount: (json['shippingAmount'] as num?)?.toDouble() ?? 0.0,
+        shippingAddress: json['shippingAddress'] is Map<String, dynamic>
+            ? Address.fromJson(json['shippingAddress'] as Map<String, dynamic>)
+            : null,
       );
 }

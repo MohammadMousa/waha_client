@@ -38,6 +38,20 @@ class OrderFlowController extends ChangeNotifier {
   bool busy = false;
   String? lastError;
 
+  /// The coupon code the customer typed, sent with every quote and with the
+  /// order. Cleared the moment the server refuses it (the server never drops
+  /// a coupon silently), and with the cart.
+  String? couponCode;
+
+  /// Normal-mode (online) delivery choice: PICKUP or FREE_SHIPPING, and the
+  /// saved address used by delivery. Both stay null in shopping mode.
+  String? shippingMethod;
+  int? addressId;
+
+  /// COUPON_* code of the last refusal, so the cart can tell the customer
+  /// why the coupon went away. Consumed by the cart screen.
+  String? couponRejectedCode;
+
   /// Effective storeId to send explicitly on quote/checkout, or null to
   /// let the backend resolve it from the session instead. Logged in with
   /// a store selected means omit it — session wins. Not logged in
@@ -139,6 +153,36 @@ class OrderFlowController extends ChangeNotifier {
     await _refreshQuote();
   }
 
+  /// Tries a code: sets it and re-quotes. Returns null when accepted, or the
+  /// COUPON_* code that refused it (the code is then cleared again).
+  Future<String?> applyCoupon(String code) async {
+    couponCode = code.trim();
+    couponRejectedCode = null;
+    await _refreshQuote();
+    final rejected = couponRejectedCode;
+    couponRejectedCode = null;
+    return rejected;
+  }
+
+  /// Picks the delivery address (or none) and re-quotes so the shipping
+  /// options reflect it.
+  Future<void> setAddress(int? id) async {
+    addressId = id;
+    await _refreshQuote();
+  }
+
+  void setShippingMethod(String? method) {
+    if (shippingMethod == method) return;
+    shippingMethod = method;
+    notifyListeners();
+  }
+
+  Future<void> removeCoupon() async {
+    couponCode = null;
+    couponRejectedCode = null;
+    await _refreshQuote();
+  }
+
   Future<void> removeItem(int productId) async {
     cart.removeWhere((c) => c.productId == productId);
     await _refreshQuote();
@@ -152,13 +196,32 @@ class OrderFlowController extends ChangeNotifier {
   Future<void> _refreshQuote() async {
     if (cart.isEmpty) {
       quote = null;
+      couponCode = null;
       notifyListeners();
       return;
     }
     _setBusy(true);
     try {
-      quote = await _api.quote(cart, storeId: _sessionAwareStoreId, token: _authToken);
+      quote = await _api.quote(cart,
+          storeId: _sessionAwareStoreId,
+          token: _authToken,
+          couponCode: couponCode,
+          addressId: addressId);
       lastError = null;
+    } on CouponRejectedException catch (e) {
+      // The code no longer works for this cart: drop it and price the cart
+      // again without it, so the customer never sees a stale total.
+      couponCode = null;
+      couponRejectedCode = e.code;
+      try {
+        quote = await _api.quote(cart,
+            storeId: _sessionAwareStoreId,
+            token: _authToken,
+            addressId: addressId);
+        lastError = null;
+      } on ApiException catch (e2) {
+        lastError = e2.message;
+      }
     } on ApiException catch (e) {
       lastError = e.message;
     } catch (e) {
@@ -207,9 +270,14 @@ class OrderFlowController extends ChangeNotifier {
         storeId: _sessionAwareStoreId,
         username: _sessionAwareUsername,
         token: _authToken,
+        couponCode: couponCode,
+        shippingMethod: shippingMethod,
+        addressId: shippingMethod == 'FREE_SHIPPING' ? addressId : null,
       );
       cart.clear();
       quote = null;
+      couponCode = null;
+      shippingMethod = null;
       lastError = null;
       return order!;
     } on ApiException catch (e) {
@@ -300,6 +368,10 @@ class OrderFlowController extends ChangeNotifier {
   void reset() {
     cart.clear();
     quote = null;
+    couponCode = null;
+    couponRejectedCode = null;
+    shippingMethod = null;
+    addressId = null;
     orderId = null;
     order = null;
     lastPayResult = null;
@@ -314,6 +386,10 @@ class OrderFlowController extends ChangeNotifier {
   void clearCart() {
     cart.clear();
     quote = null;
+    couponCode = null;
+    couponRejectedCode = null;
+    shippingMethod = null;
+    addressId = null;
     lastError = null;
     notifyListeners();
   }

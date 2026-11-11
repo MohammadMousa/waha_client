@@ -4,6 +4,7 @@ import '../l10n/generated/app_localizations.dart';
 import '../models/cart_item.dart';
 import '../models/quote.dart';
 import '../state/locale_service.dart';
+import '../state/store_config_service.dart';
 import '../utils/locale_name.dart';
 import '../utils/money.dart';
 import 'product_image.dart';
@@ -74,7 +75,7 @@ class CartLineTile extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     unitPrice != null
-                        ? '${formatMoney(unitPrice, currency)} ${l10n.perUnit}'
+                        ? '${formatMoney(unitPrice, currency)} ${l10n.perUnit} · ${storeConfigService.pricesExcludeVat ? l10n.priceExcVat : l10n.priceIncVat}'
                         : 'Calculating price…',
                     style: theme.textTheme.bodySmall
                         ?.copyWith(color: theme.colorScheme.outline),

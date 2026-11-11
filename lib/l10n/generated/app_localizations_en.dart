@@ -558,11 +558,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get terminalClose => 'Close';
 
   @override
-  String autoSelectingIn(int seconds) {
-    return 'Auto-selecting in ${seconds}s — tap to pay now';
-  }
-
-  @override
   String get invoiceDueLabel => 'Due';
 
   @override
@@ -617,4 +612,232 @@ class AppLocalizationsEn extends AppLocalizations {
   String qrPayExpiresIn(String minutes, String seconds) {
     return 'Expires in $minutes:$seconds';
   }
+
+  @override
+  String get couponButtonTooltip => 'Coupon';
+
+  @override
+  String get couponSheetTitle => 'Have a coupon?';
+
+  @override
+  String get couponCodeHint => 'Coupon code';
+
+  @override
+  String get couponApply => 'Apply';
+
+  @override
+  String get couponRemove => 'Remove coupon';
+
+  @override
+  String get couponRowLabel => 'Coupon';
+
+  @override
+  String get couponAppliedMessage => 'Coupon applied';
+
+  @override
+  String get clearCartTooltip => 'Clear cart';
+
+  @override
+  String get couponErrNotFound => 'This coupon code is not valid.';
+
+  @override
+  String get couponErrDisabled => 'This coupon is not active.';
+
+  @override
+  String get couponErrNotYetValid => 'This coupon is not valid yet.';
+
+  @override
+  String get couponErrExpired => 'This coupon has expired.';
+
+  @override
+  String get couponErrWrongStore => 'This coupon is not valid in this store.';
+
+  @override
+  String get couponErrUsageLimit => 'This coupon has reached its usage limit.';
+
+  @override
+  String get couponErrUserLimit =>
+      'You have already used this coupon the maximum number of times.';
+
+  @override
+  String get couponErrAmountExhausted => 'This coupon has no discount left.';
+
+  @override
+  String get couponErrMinimumOrder =>
+      'Your cart is below the minimum amount for this coupon.';
+
+  @override
+  String get couponErrNotCombinable =>
+      'This coupon cannot be combined with the offers already applied.';
+
+  @override
+  String get couponErrNotApplicable =>
+      'No item in your cart qualifies for this coupon.';
+
+  @override
+  String get couponErrTotalNotPositive =>
+      'The total after the coupon must be more than zero.';
+
+  @override
+  String get couponErrGeneric => 'The coupon could not be applied.';
+
+  @override
+  String get priceIncVat => 'inc VAT';
+
+  @override
+  String get priceExcVat => 'exc VAT';
+
+  @override
+  String get couponScanTitle => 'Scan coupon code';
+
+  @override
+  String get couponScanTooltip => 'Scan with camera';
+
+  @override
+  String get cartCheckoutButton => 'Checkout';
+
+  @override
+  String get checkoutTitle => 'Checkout';
+
+  @override
+  String get checkoutDeliveryTitle => 'Delivery method';
+
+  @override
+  String get shipPickup => 'Pickup';
+
+  @override
+  String get shipPickupHint => 'Collect your order at the branch';
+
+  @override
+  String get shipFree => 'Free delivery';
+
+  @override
+  String get shipFreeHint => 'Delivered to your address';
+
+  @override
+  String get shipAddressRequired => 'Choose an address first';
+
+  @override
+  String get shipNotAvailable => 'Not available for this order';
+
+  @override
+  String get shipUnavailableNotice =>
+      'Delivery options are not available. Please sign in again.';
+
+  @override
+  String get shipLabel => 'Shipping';
+
+  @override
+  String get shipFreeAmount => 'Free';
+
+  @override
+  String get checkoutAddressTitle => 'Delivery address';
+
+  @override
+  String get checkoutNoAddress => 'No address selected';
+
+  @override
+  String get checkoutChangeAddress => 'Change';
+
+  @override
+  String get checkoutAddAddress => 'Add address';
+
+  @override
+  String get checkoutPlaceOrder => 'Place order';
+
+  @override
+  String get shipErrNotAvailable =>
+      'Delivery is not available for this address or order.';
+
+  @override
+  String get addressesTitle => 'My addresses';
+
+  @override
+  String get addressesEmpty => 'You have no saved addresses yet.';
+
+  @override
+  String get addressDefaultChip => 'Default';
+
+  @override
+  String get addressMakeDefault => 'Make default';
+
+  @override
+  String get addressEdit => 'Edit';
+
+  @override
+  String get addressDelete => 'Delete';
+
+  @override
+  String get addressDeleteConfirm => 'Delete this address?';
+
+  @override
+  String get addressNew => 'New address';
+
+  @override
+  String get addressEditTitle => 'Edit address';
+
+  @override
+  String get addressSave => 'Save';
+
+  @override
+  String get addressFieldLabel => 'Label (Home, Work…)';
+
+  @override
+  String get addressFieldRecipient => 'Recipient name';
+
+  @override
+  String get addressFieldPhone => 'Phone';
+
+  @override
+  String get addressFieldBuilding => 'Building number';
+
+  @override
+  String get addressFieldStreet => 'Street';
+
+  @override
+  String get addressFieldSecondary => 'Additional number';
+
+  @override
+  String get addressFieldDistrict => 'District';
+
+  @override
+  String get addressFieldCity => 'City';
+
+  @override
+  String get addressFieldPostal => 'Postal code';
+
+  @override
+  String get addressFieldNotes => 'Additional information';
+
+  @override
+  String get addressFieldDefault => 'Make this my default address';
+
+  @override
+  String get addressRequiredField => 'Required';
+
+  @override
+  String get addressInvalidPhone => 'Enter a valid phone number';
+
+  @override
+  String get addressLimitReached =>
+      'You have reached the maximum number of addresses.';
+
+  @override
+  String get invoiceDeliveryTitle => 'Delivery';
+
+  @override
+  String get invoiceDeliveryAddress => 'Delivery address';
+
+  @override
+  String get commonDelete => 'Delete';
+
+  @override
+  String get sessionStartingTitle => 'Starting your session…';
+
+  @override
+  String get sessionStartingHint =>
+      'We could not create your session yet. Trying again.';
+
+  @override
+  String get sessionRetry => 'Try now';
 }

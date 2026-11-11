@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'dart:async';
+
+import 'package:provider/provider.dart';
+
 import '../config/app_config.dart';
+import '../l10n/generated/app_localizations.dart';
+import '../services/api_client.dart';
+import '../state/auth_service.dart';
+import '../state/browsing_mode_service.dart';
 import '../state/startup_connection.dart';
 
 /// Blocks the app behind a "Connecting…" card while the server is
@@ -14,13 +22,21 @@ class ConnectionGateOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: startupConnection,
+      listenable:
+          Listenable.merge([startupConnection, authService, browsingModeService]),
       builder: (context, _) {
         final show = startupConnection.active && !startupConnection.suspended;
+        // Shopping mode always runs on an account (a regular one or the
+        // automatic guest). With none, nothing behind this card may be used
+        // until one exists.
+        final needsSession = !startupConnection.active &&
+            browsingModeService.mode == BrowsingMode.shopping &&
+            !authService.isLoggedIn;
         return Stack(
           children: [
             child,
             if (show) const Positioned.fill(child: _GateCard()),
+            if (needsSession) const Positioned.fill(child: _SessionGateCard()),
           ],
         );
       },
@@ -186,6 +202,82 @@ class _GateCardState extends State<_GateCard> {
           ),
         );
       },
+    );
+  }
+}
+
+/// Shown in shopping mode while no session exists (the guest account could
+/// not be created at startup). Keeps trying on its own and has a button to
+/// try right away; disappears as soon as a session exists.
+class _SessionGateCard extends StatefulWidget {
+  const _SessionGateCard();
+
+  @override
+  State<_SessionGateCard> createState() => _SessionGateCardState();
+}
+
+class _SessionGateCardState extends State<_SessionGateCard> {
+  Timer? _timer;
+  bool _trying = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _try());
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) => _try());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _try() async {
+    if (_trying || !mounted) return;
+    setState(() => _trying = true);
+    try {
+      final api = context.read<ApiClient>();
+      await authService.loginAsGuest(api);
+      await authService.resolveDefaultStore(api);
+    } catch (_) {
+      // Still no server or session: the timer tries again.
+    }
+    if (mounted) setState(() => _trying = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Material(
+      color: Colors.black54,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Card(
+            margin: const EdgeInsets.all(24),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(l10n.sessionStartingTitle,
+                      style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  Text(l10n.sessionStartingHint, textAlign: TextAlign.center),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: _trying ? null : _try,
+                    child: Text(l10n.sessionRetry),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

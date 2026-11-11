@@ -74,3 +74,4 @@ devtools_options.yaml
 # *.example.json next to it, drop ".example", fill in — see README.
 /config/*.json
 !/config/*.example.json
+android/keystore/

@@ -149,6 +149,16 @@ class _ProfileSheetState extends State<ProfileSheet> {
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.location_on_outlined, color: scheme.primary),
+                title: Text(l10n.addressesTitle),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).pushNamed(Routes.addresses);
+                },
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.devices_outlined, color: scheme.primary),
                 title: Text(l10n.sessionsTitle),
                 trailing: const Icon(Icons.chevron_right),

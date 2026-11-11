@@ -12,6 +12,13 @@ class PermissionService extends ChangeNotifier {
 
   bool can(String permission) => _permissions.contains(permission);
 
+  /// TEMPORARY: while true, every user (guest included) can open Settings and
+  /// see the floating dev tools / footer, in every mode. The permission check
+  /// below is kept — set this to false to restore it.
+  static const bool devAccessWithoutPermission = true;
+
+  bool get canOpenDevTools => devAccessWithoutPermission || canEditAnything;
+
   bool get canEditAnything =>
       _permissions.any({'EDIT_PRODUCTS', 'MANAGE_CATEGORIES', 'MANAGE_STORES'}.contains);
 

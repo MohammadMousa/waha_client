@@ -448,7 +448,7 @@ class _ServerConnectionPanelState extends State<ServerConnectionPanel> {
                       const SizedBox(height: 14),
                       if (_credsNeeded) ...[
                         Text(
-                          'Sign in to the ${_customOn ? 'new' : 'default'} server (not saved)',
+                          'Sign in to the ${_customOn ? 'new' : 'default'} server (optional, not saved). Leave the password empty to keep the current sign-in if the server accepts it, otherwise you are signed out.',
                           style: TextStyle(fontSize: 12, color: scheme.outline),
                         ),
                         const SizedBox(height: 6),
@@ -475,7 +475,9 @@ class _ServerConnectionPanelState extends State<ServerConnectionPanel> {
                             enableSuggestions: false,
                             autocorrect: false,
                             decoration: const InputDecoration(
-                                border: OutlineInputBorder(), isDense: true),
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                                hintText: 'optional'),
                           ),
                         ),
                         const SizedBox(height: 14),

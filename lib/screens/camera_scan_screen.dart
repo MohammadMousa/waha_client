@@ -9,7 +9,14 @@ import '../state/order_flow_controller.dart';
 /// This is the "real scanner" path — distinct from the cached-value
 /// simulator buttons, which skip the camera entirely.
 class CameraScanScreen extends StatefulWidget {
-  const CameraScanScreen({super.key});
+  /// Shown in the app bar; null keeps the default product-scan title.
+  final String? title;
+
+  /// The clear-cart action only makes sense when scanning products. Scanning
+  /// something else (a coupon code) hides it.
+  final bool showClearAll;
+
+  const CameraScanScreen({super.key, this.title, this.showClearAll = true});
 
   @override
   State<CameraScanScreen> createState() => _CameraScanScreenState();
@@ -91,17 +98,18 @@ class _CameraScanScreenState extends State<CameraScanScreen>
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        title: const Text('Scan with Camera'),
+        title: Text(widget.title ?? 'Scan with Camera'),
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.delete_sweep_outlined),
-            tooltip: 'Clear All',
-            onPressed: _clearAll,
-          ),
+          if (widget.showClearAll)
+            IconButton(
+              icon: const Icon(Icons.delete_sweep_outlined),
+              tooltip: 'Clear All',
+              onPressed: _clearAll,
+            ),
         ],
       ),
       body: Stack(

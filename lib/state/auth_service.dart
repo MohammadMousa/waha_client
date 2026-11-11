@@ -32,6 +32,10 @@ class AuthService extends ChangeNotifier {
   bool get isDeviceSession => deviceId != null;
 
   void applyConfig(Map<String, String> config) {
+    if (config.isNotEmpty) {
+      storeConfigService
+          .setPricesExcludeVat(config['prices_exclude_vat'] == 'true');
+    }
     final appNameJson = config['appName'];
     if (appNameJson != null && appNameJson.isNotEmpty) {
       try {
@@ -107,7 +111,9 @@ class AuthService extends ChangeNotifier {
   /// Creates a throwaway Shopping guest session. No credentials cached —
   /// guest accounts are ephemeral and recreated fresh each time.
   Future<void> loginAsGuest(ApiClient api) async {
-    final session = await api.guest();
+    final session = await api.guest(sessionProperties: {
+      'mode': browsingModeService.mode.name.toUpperCase(),
+    });
     _applySession(session, tokenOverride: session.token);
     await LocalPrefs.setAuthToken(session.token!);
     // No credentials to cache — guest has no password we know.
@@ -183,6 +189,16 @@ class AuthService extends ChangeNotifier {
   Future<void> adoptSession(AuthSession session) async {
     _applySession(session, tokenOverride: session.token);
     await LocalPrefs.setAuthToken(session.token!);
+    notifyListeners();
+  }
+
+  /// Keeps the token that was already on the device after a server change,
+  /// because the new server accepted it. Nothing typed, nothing stored but
+  /// the token itself.
+  Future<void> adoptKeptToken(String keptToken, AuthSession session) async {
+    token = keptToken;
+    _applySession(session);
+    await LocalPrefs.setAuthToken(keptToken);
     notifyListeners();
   }
 
@@ -311,6 +327,10 @@ class AuthService extends ChangeNotifier {
     try {
       final config = await api.getConfig(orgId: orgId);
       applyLanguageSeed(config);
+      if (config.isNotEmpty) {
+        storeConfigService
+            .setPricesExcludeVat(config['prices_exclude_vat'] == 'true');
+      }
     } catch (_) {
       // Network hiccup — the periodic check on Landing will pick it up later.
     }

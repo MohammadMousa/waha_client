@@ -22,6 +22,20 @@ class ProductNotSellableException extends ApiException {
   const ProductNotSellableException(super.statusCode, super.message);
 }
 
+/// 422 on quote or order creation — the coupon code was refused. [code] is
+/// the COUPON_* error code (or ORDER_TOTAL_NOT_POSITIVE); the backend's own
+/// message is English only, so the UI maps the code to its own text.
+class CouponRejectedException extends ApiException {
+  final String code;
+  const CouponRejectedException(super.statusCode, super.message, this.code);
+}
+
+/// 422 SHIPPING_NOT_AVAILABLE on order creation: a rule blocks the chosen
+/// delivery (not used by the server yet, but handled).
+class ShippingNotAvailableException extends ApiException {
+  const ShippingNotAvailableException(super.statusCode, super.message);
+}
+
 /// 404 on GET/POST against an order id that doesn't exist.
 class OrderNotFoundException extends ApiException {
   const OrderNotFoundException(super.statusCode, super.message);

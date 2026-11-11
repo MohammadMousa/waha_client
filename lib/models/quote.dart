@@ -1,3 +1,5 @@
+import 'address.dart';
+
 /// An offer the server applied: only its id and display name.
 class AppliedOffer {
   final int id;
@@ -10,6 +12,28 @@ class AppliedOffer {
     final id = json['id'];
     if (id is! num) return null;
     return AppliedOffer(id: id.toInt(), name: (json['name'] ?? '').toString());
+  }
+}
+
+/// The coupon the server applied: its code, name and its own share of the
+/// discount (already included in the order's total discount).
+class AppliedCoupon {
+  final String code;
+  final String name;
+  final double discountAmount;
+
+  const AppliedCoupon(
+      {required this.code, required this.name, required this.discountAmount});
+
+  static AppliedCoupon? fromJson(dynamic json) {
+    if (json is! Map<String, dynamic>) return null;
+    final code = json['code'];
+    if (code == null) return null;
+    return AppliedCoupon(
+      code: code.toString(),
+      name: (json['name'] ?? '').toString(),
+      discountAmount: (json['discountAmount'] as num?)?.toDouble() ?? 0.0,
+    );
   }
 }
 
@@ -55,6 +79,10 @@ class Quote {
   /// Total discount from all offers, and the invoice-level offer if any.
   final double discountAmount;
   final AppliedOffer? invoiceOffer;
+  final AppliedCoupon? coupon;
+
+  /// Null unless this is a signed-in normal-mode session (online orders).
+  final List<ShippingOption>? shippingOptions;
 
   const Quote({
     required this.subtotal,
@@ -63,6 +91,8 @@ class Quote {
     required this.items,
     this.discountAmount = 0.0,
     this.invoiceOffer,
+    this.coupon,
+    this.shippingOptions,
   });
 
   factory Quote.fromJson(Map<String, dynamic> json) => Quote(
@@ -74,5 +104,9 @@ class Quote {
             .toList(),
         discountAmount: (json['discountAmount'] as num?)?.toDouble() ?? 0.0,
         invoiceOffer: AppliedOffer.fromJson(json['invoiceOffer']),
+        coupon: AppliedCoupon.fromJson(json['coupon']),
+        shippingOptions: (json['shippingOptions'] as List<dynamic>?)
+            ?.map((e) => ShippingOption.fromJson(e as Map<String, dynamic>))
+            .toList(),
       );
 }

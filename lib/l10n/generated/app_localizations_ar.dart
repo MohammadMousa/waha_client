@@ -555,11 +555,6 @@ class AppLocalizationsAr extends AppLocalizations {
   String get terminalClose => 'إغلاق';
 
   @override
-  String autoSelectingIn(int seconds) {
-    return 'الاختيار التلقائي خلال $seconds ث — اضغط للدفع الآن';
-  }
-
-  @override
   String get invoiceDueLabel => 'المستحق';
 
   @override
@@ -614,4 +609,232 @@ class AppLocalizationsAr extends AppLocalizations {
   String qrPayExpiresIn(String minutes, String seconds) {
     return 'تنتهي خلال $minutes:$seconds';
   }
+
+  @override
+  String get couponButtonTooltip => 'كوبون';
+
+  @override
+  String get couponSheetTitle => 'هل لديك كوبون؟';
+
+  @override
+  String get couponCodeHint => 'رمز الكوبون';
+
+  @override
+  String get couponApply => 'تطبيق';
+
+  @override
+  String get couponRemove => 'إزالة الكوبون';
+
+  @override
+  String get couponRowLabel => 'الكوبون';
+
+  @override
+  String get couponAppliedMessage => 'تم تطبيق الكوبون';
+
+  @override
+  String get clearCartTooltip => 'تفريغ السلة';
+
+  @override
+  String get couponErrNotFound => 'رمز الكوبون غير صحيح.';
+
+  @override
+  String get couponErrDisabled => 'هذا الكوبون غير مفعّل.';
+
+  @override
+  String get couponErrNotYetValid => 'هذا الكوبون لم يبدأ سريانه بعد.';
+
+  @override
+  String get couponErrExpired => 'انتهت صلاحية هذا الكوبون.';
+
+  @override
+  String get couponErrWrongStore => 'هذا الكوبون غير صالح في هذا الفرع.';
+
+  @override
+  String get couponErrUsageLimit =>
+      'وصل هذا الكوبون إلى الحد الأقصى للاستخدام.';
+
+  @override
+  String get couponErrUserLimit =>
+      'لقد استخدمت هذا الكوبون الحد الأقصى المسموح به.';
+
+  @override
+  String get couponErrAmountExhausted => 'لم يعد هناك خصم متبقٍ لهذا الكوبون.';
+
+  @override
+  String get couponErrMinimumOrder =>
+      'قيمة سلتك أقل من الحد الأدنى لهذا الكوبون.';
+
+  @override
+  String get couponErrNotCombinable =>
+      'لا يمكن دمج هذا الكوبون مع العروض المطبّقة.';
+
+  @override
+  String get couponErrNotApplicable =>
+      'لا يوجد في سلتك منتج يشمله هذا الكوبون.';
+
+  @override
+  String get couponErrTotalNotPositive =>
+      'يجب أن يكون الإجمالي بعد الكوبون أكبر من صفر.';
+
+  @override
+  String get couponErrGeneric => 'تعذّر تطبيق الكوبون.';
+
+  @override
+  String get priceIncVat => 'شامل الضريبة';
+
+  @override
+  String get priceExcVat => 'غير شامل الضريبة';
+
+  @override
+  String get couponScanTitle => 'مسح رمز الكوبون';
+
+  @override
+  String get couponScanTooltip => 'المسح بالكاميرا';
+
+  @override
+  String get cartCheckoutButton => 'إتمام الطلب';
+
+  @override
+  String get checkoutTitle => 'إتمام الطلب';
+
+  @override
+  String get checkoutDeliveryTitle => 'طريقة الاستلام';
+
+  @override
+  String get shipPickup => 'الاستلام من الفرع';
+
+  @override
+  String get shipPickupHint => 'استلم طلبك من الفرع';
+
+  @override
+  String get shipFree => 'توصيل مجاني';
+
+  @override
+  String get shipFreeHint => 'يصلك الطلب إلى عنوانك';
+
+  @override
+  String get shipAddressRequired => 'اختر عنواناً أولاً';
+
+  @override
+  String get shipNotAvailable => 'غير متاح لهذا الطلب';
+
+  @override
+  String get shipUnavailableNotice =>
+      'خيارات التوصيل غير متاحة. يرجى تسجيل الدخول مرة أخرى.';
+
+  @override
+  String get shipLabel => 'الشحن';
+
+  @override
+  String get shipFreeAmount => 'مجاني';
+
+  @override
+  String get checkoutAddressTitle => 'عنوان التوصيل';
+
+  @override
+  String get checkoutNoAddress => 'لم يتم اختيار عنوان';
+
+  @override
+  String get checkoutChangeAddress => 'تغيير';
+
+  @override
+  String get checkoutAddAddress => 'إضافة عنوان';
+
+  @override
+  String get checkoutPlaceOrder => 'تأكيد الطلب';
+
+  @override
+  String get shipErrNotAvailable =>
+      'التوصيل غير متاح لهذا العنوان أو هذا الطلب.';
+
+  @override
+  String get addressesTitle => 'عناويني';
+
+  @override
+  String get addressesEmpty => 'لا توجد عناوين محفوظة بعد.';
+
+  @override
+  String get addressDefaultChip => 'الافتراضي';
+
+  @override
+  String get addressMakeDefault => 'تعيين كافتراضي';
+
+  @override
+  String get addressEdit => 'تعديل';
+
+  @override
+  String get addressDelete => 'حذف';
+
+  @override
+  String get addressDeleteConfirm => 'هل تريد حذف هذا العنوان؟';
+
+  @override
+  String get addressNew => 'عنوان جديد';
+
+  @override
+  String get addressEditTitle => 'تعديل العنوان';
+
+  @override
+  String get addressSave => 'حفظ';
+
+  @override
+  String get addressFieldLabel => 'الاسم (المنزل، العمل…)';
+
+  @override
+  String get addressFieldRecipient => 'اسم المستلم';
+
+  @override
+  String get addressFieldPhone => 'رقم الجوال';
+
+  @override
+  String get addressFieldBuilding => 'رقم المبنى';
+
+  @override
+  String get addressFieldStreet => 'الشارع';
+
+  @override
+  String get addressFieldSecondary => 'الرقم الإضافي';
+
+  @override
+  String get addressFieldDistrict => 'الحي';
+
+  @override
+  String get addressFieldCity => 'المدينة';
+
+  @override
+  String get addressFieldPostal => 'الرمز البريدي';
+
+  @override
+  String get addressFieldNotes => 'معلومات إضافية';
+
+  @override
+  String get addressFieldDefault => 'اجعله عنواني الافتراضي';
+
+  @override
+  String get addressRequiredField => 'مطلوب';
+
+  @override
+  String get addressInvalidPhone => 'أدخل رقم جوال صحيح';
+
+  @override
+  String get addressLimitReached => 'وصلت إلى الحد الأقصى من العناوين.';
+
+  @override
+  String get invoiceDeliveryTitle => 'التوصيل';
+
+  @override
+  String get invoiceDeliveryAddress => 'عنوان التوصيل';
+
+  @override
+  String get commonDelete => 'حذف';
+
+  @override
+  String get sessionStartingTitle => 'جارٍ بدء جلستك…';
+
+  @override
+  String get sessionStartingHint =>
+      'تعذّر إنشاء جلستك حتى الآن. نحاول مرة أخرى.';
+
+  @override
+  String get sessionRetry => 'حاول الآن';
 }

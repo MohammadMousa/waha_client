@@ -18,7 +18,6 @@ import '../state/order_flow_controller.dart';
 import '../services/trace_log.dart';
 import '../state/store_config_service.dart';
 import '../utils/locale_name.dart';
-import '../widgets/timer_footer_sheet.dart';
 
 enum _Phase { loading, loaded, paying, waiting, paid, cancelled }
 
@@ -51,29 +50,6 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
   int _pollAttempts = 0;
   static const _maxPollAttempts = 150; // ~5 min at 2s
 
-  // Auto-select/auto-pick — a convenience for the first few seconds after
-  // the screen loads, NOT a way out of this screen: sitting idle here is
-  // handled by the single app-wide KioskIdleGuard (see app_router.dart).
-  // Armed only on the initial load (see _loadOrder); a decline or a
-  // cancelled redirect returning to _Phase.loaded does NOT re-arm it, so a
-  // customer is never silently re-charged after backing out once, and never
-  // auto-picked into a second attempt either:
-  //  - Exactly one method: auto-select it after a short delay — skips the
-  //    pointless extra tap.
-  //  - More than one: auto-pick after a longer delay if the customer
-  //    hasn't chosen manually — `terminal` if it's an active method for
-  //    this store (the physical kiosk's expected common case), otherwise
-  //    just the first listed method. This is a config check (is `terminal`
-  //    in `_methods`), not a live hardware ping — if the hardware itself
-  //    turns out not to work, _handleTerminal's own failed/retry state
-  //    handles that already, same as a manual pick would.
-  //  - Zero methods (e.g. a transient getPaymentMethods() failure): nothing
-  //    to pick, so nothing is armed — the idle guard resets the session.
-  static const _autoSelectDelaySeconds = 4;
-  static const _autoPickDelaySeconds = 5;
-  Timer? _autoSelectTimer;
-  int? _autoSelectSecondsLeft;
-
   @override
   void initState() {
     super.initState();
@@ -84,7 +60,6 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
   @override
   void dispose() {
     _pollTimer?.cancel();
-    _autoSelectTimer?.cancel();
     // Safety net: if this screen is disposed while still polling (left the
     // flow some way other than _pollOnce/_cancelWaiting reaching one of
     // their own end states), paymentInProgress would otherwise stay stuck
@@ -92,43 +67,6 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
     // leaving payment entirely.
     _flow.setPaymentInProgress(false);
     super.dispose();
-  }
-
-  void _maybeStartAutoSelect() {
-    if (_methods.isEmpty) {
-      TraceLog.log('Invoice: no payment methods — idle guard will reset the session');
-      return;
-    }
-    final delay = _methods.length == 1 ? _autoSelectDelaySeconds : _autoPickDelaySeconds;
-    TraceLog.log(
-        'Invoice: auto-${_methods.length == 1 ? "select" : "pick"} armed, ${_methods.length} method(s), ${delay}s');
-    setState(() => _autoSelectSecondsLeft = delay);
-    _autoSelectTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      final left = _autoSelectSecondsLeft! - 1;
-      if (left <= 0) {
-        _cancelAutoSelect();
-        final method = _chooseAutoPickMethod();
-        TraceLog.log('Invoice: auto-picked ${method.key} (${method.provider})');
-        _handleMethod(method);
-      } else {
-        setState(() => _autoSelectSecondsLeft = left);
-      }
-    });
-  }
-
-  /// Only called once _methods.isNotEmpty is already established (see
-  /// _maybeStartAutoSelect) — always returns a real method, never null.
-  /// The kiosk app prefers a TERMINAL method here; waha_client has none on
-  /// offer, so just the first configured method.
-  PaymentMethod _chooseAutoPickMethod() => _methods.first;
-
-  void _cancelAutoSelect() {
-    _autoSelectTimer?.cancel();
-    _autoSelectTimer = null;
-    if (mounted && _autoSelectSecondsLeft != null) {
-      setState(() => _autoSelectSecondsLeft = null);
-    }
   }
 
   Future<void> _loadOrder() async {
@@ -160,7 +98,6 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
       } else {
         await _loadMethods();
         if (mounted) setState(() => _phase = _Phase.loaded);
-        _maybeStartAutoSelect();
       }
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
@@ -190,21 +127,6 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
     // paid order locally and never touches the controller otherwise.
     context.read<OrderFlowController>().setOrder(order);
     setState(() => _phase = _Phase.paid);
-    if (browsingModeService.mode == BrowsingMode.kiosk) {
-      // Delay one frame so the Scaffold beneath the dialog is fully built.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        showDialog<void>(
-          context: context,
-          barrierDismissible: false,
-          barrierColor: Colors.black87,
-          builder: (_) => _KioskPaidDialog(
-            order: order,
-            onNewOrder: _resetAndGoHome,
-          ),
-        );
-      });
-    }
   }
 
   void _resetAndGoHome() {
@@ -422,15 +344,9 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
     );
   }
 
-  // The auto-select timer (_maybeStartAutoSelect) and a manual tap both call
-  // this directly, with nothing cancelling one when the other fires — a tap
-  // landing in the same instant the timer's last tick auto-picks would
-  // otherwise start two payment attempts for the same order. This flag is
-  // checked and set synchronously, before any await runs, so whichever call
-  // reaches here first wins and the other is a no-op — Dart's single-
-  // threaded event loop guarantees no interleaving between them. Reset once
-  // that attempt actually finishes (success, decline, cancel), not stuck
-  // forever — a real retry afterward must still work.
+  // Guards against a double tap starting two payment attempts for the same
+  // order. Checked and set synchronously before any await. Reset once the
+  // attempt actually finishes (success, decline, cancel) so a retry works.
   bool _methodHandling = false;
 
   void _handleMethod(PaymentMethod method) {
@@ -731,7 +647,6 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                       onTap: _launchingSession
                           ? null
                           : () {
-                              _cancelAutoSelect();
                               TraceLog.log(
                                   'Invoice: manual pick ${method.key} (${method.provider})');
                               if (method.provider == 'SIMULATED') {
@@ -744,16 +659,6 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                 ],
               ),
             ),
-          if (_autoSelectSecondsLeft != null) ...[
-            const SizedBox(height: 10),
-            Center(
-              child: Text(
-                l10n.autoSelectingIn(_autoSelectSecondsLeft!),
-                style: TextStyle(color: scheme.outline, fontSize: 13),
-              ),
-            ),
-          ],
-
           const SizedBox(height: 24),
 
           // Collapsible items
@@ -867,166 +772,6 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
             ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-// ── Kiosk paid dialog ────────────────────────────────────────────────────────
-// Blocking full-screen overlay shown immediately after payment in kiosk mode.
-// The customer scans the QR to get their e-invoice. Timer auto-resets to home.
-// "Give me more time" restarts the countdown. Back button is disabled.
-
-class _KioskPaidDialog extends StatefulWidget {
-  final WahaOrder order;
-  final VoidCallback onNewOrder;
-
-  const _KioskPaidDialog({required this.order, required this.onNewOrder});
-
-  @override
-  State<_KioskPaidDialog> createState() => _KioskPaidDialogState();
-}
-
-class _KioskPaidDialogState extends State<_KioskPaidDialog> {
-  // Always follows the "after invoice" Settings field, regardless of the
-  // "Enable Idle Timers" checkbox — this redirect always fires (a paid
-  // screen can't be left up forever), on whatever duration is configured
-  // there. Want it shorter/longer? Change that spinner value, not this
-  // toggle.
-  late int _secondsLeft;
-  Timer? _timer;
-
-  int get _countdownSeconds => kioskTimerConfig.afterInvoiceWarningCountdown.inSeconds;
-
-  @override
-  void initState() {
-    super.initState();
-    _secondsLeft = _countdownSeconds;
-    _startTimer();
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  void _startTimer() {
-    _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      setState(() => _secondsLeft--);
-      if (_secondsLeft <= 0) {
-        _timer?.cancel();
-        _doNewOrder();
-      }
-    });
-  }
-
-  void _resetTimer() {
-    setState(() {
-      _secondsLeft = _countdownSeconds;
-    });
-    _startTimer();
-  }
-
-  void _doNewOrder() {
-    _timer?.cancel();
-    if (mounted) Navigator.of(context).pop();
-    widget.onNewOrder();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final url = widget.order.invoiceUrl;
-
-    return PopScope(
-      canPop: false,
-      child: Dialog.fullscreen(
-        backgroundColor: Colors.black87,
-        child: SafeArea(
-          bottom: false,
-          child: Column(
-            children: [
-              Expanded(
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // PAID stamp
-                        Container(
-                          width: 100,
-                          height: 100,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.green.shade600,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.green.withValues(alpha: 0.4),
-                                blurRadius: 32,
-                                spreadRadius: 4,
-                              ),
-                            ],
-                          ),
-                          child: const Icon(Icons.check_rounded,
-                              color: Colors.white, size: 62),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          l10n.kioskPaidTitle,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 28,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 32),
-
-                        // QR section
-                        if (url != null) ...[
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: QrImageView(
-                              data: url,
-                              version: QrVersions.auto,
-                              size: 200,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            l10n.kioskPaidScanHint,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.white70, fontSize: 15),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              // Footer sheet — same visual language as the idle-warning
-              // sheet, floating on the dark celebratory background instead
-              // of a plain countdown line + button row.
-              TimerFooterSheet(
-                message: l10n.kioskPaidClosingIn(_secondsLeft),
-                secondsLeft: _secondsLeft,
-                primaryLabel: l10n.kioskPaidNewOrder,
-                primaryColor: Colors.green.shade600,
-                onPrimary: _doNewOrder,
-                secondaryLabel: l10n.kioskPaidResetTimer,
-                onSecondary: _resetTimer,
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -1430,13 +1175,53 @@ class _CollapsibleItemsState extends State<_CollapsibleItems> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
               child: Column(
                 children: [
-                  if (widget.order.discountAmount > 0) ...[
+                  // The order's discount includes the coupon's share, so the
+                  // offers' part is what is left once the coupon is taken out.
+                  if (widget.order.discountAmount -
+                          (widget.order.coupon?.discountAmount ?? 0) >
+                      0) ...[
                     _SummaryRow(
                       label: l10n.cartDiscount,
                       value: _formatPrice(
-                          -widget.order.discountAmount, widget.currency),
+                          -(widget.order.discountAmount -
+                              (widget.order.coupon?.discountAmount ?? 0)),
+                          widget.currency),
                       scheme: scheme,
                     ),
+                    const SizedBox(height: 4),
+                  ],
+                  if (widget.order.coupon != null) ...[
+                    _SummaryRow(
+                      label:
+                          '${l10n.couponRowLabel} (${widget.order.coupon!.code})',
+                      value: _formatPrice(
+                          -widget.order.coupon!.discountAmount, widget.currency),
+                      scheme: scheme,
+                    ),
+                    const SizedBox(height: 4),
+                  ],
+                  if (widget.order.shippingMethod != null) ...[
+                    _SummaryRow(
+                      label: widget.order.shippingMethod == 'PICKUP'
+                          ? '${l10n.shipLabel} · ${l10n.shipPickup}'
+                          : '${l10n.shipLabel} · ${l10n.shipFree}',
+                      value: widget.order.shippingAmount > 0
+                          ? _formatPrice(
+                              widget.order.shippingAmount, widget.currency)
+                          : l10n.shipFreeAmount,
+                      scheme: scheme,
+                    ),
+                    if (widget.order.shippingAddress != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2, bottom: 4),
+                        child: Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: Text(
+                            '${l10n.invoiceDeliveryAddress}: ${widget.order.shippingAddress!.summary}',
+                            style: TextStyle(color: scheme.outline, fontSize: 12),
+                          ),
+                        ),
+                      ),
                     const SizedBox(height: 4),
                   ],
                   _SummaryRow(

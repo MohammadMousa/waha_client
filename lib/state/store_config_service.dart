@@ -86,6 +86,18 @@ class StoreConfigService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Organization property prices_exclude_vat: true means the prices in
+  /// quote/order lines are net ("exc VAT"); anything else (the default) means
+  /// they include VAT. Only a label — the amounts come ready from the server.
+  bool _pricesExcludeVat = false;
+  bool get pricesExcludeVat => _pricesExcludeVat;
+
+  void setPricesExcludeVat(bool value) {
+    if (_pricesExcludeVat == value) return;
+    _pricesExcludeVat = value;
+    notifyListeners();
+  }
+
   void setAppName(Map<String, dynamic> nameMap) {
     _appName = nameMap;
     notifyListeners();

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../config/app_config.dart';
+import '../models/address.dart';
 import '../models/account_user.dart';
 import '../models/auth_session.dart';
 import '../models/cart_item.dart';
@@ -203,9 +204,15 @@ class ApiClient {
   }
 
   // POST /api/auth/guest — Shopping mode only, creates throwaway account
-  Future<AuthSession> guest() async {
+  Future<AuthSession> guest({Map<String, String>? sessionProperties}) async {
     final resp = await _send(
-      () => _http.post(_uri('/api/auth/guest'), headers: _headers()),
+      () => _http.post(
+        _uri('/api/auth/guest'),
+        headers: _headers(),
+        body: sessionProperties == null
+            ? null
+            : jsonEncode({'sessionProperties': sessionProperties}),
+      ),
     );
     if (resp.statusCode == 200) {
       return AuthSession.fromJson(
@@ -576,15 +583,36 @@ class ApiClient {
 
   // ---- Cart / order ----------------------------------------------------
 
+  /// 422 {error, message}: a refused coupon (COUPON_*) or a zero total.
+  void _throwIfCouponRejected(http.Response resp, String msg) {
+    if (resp.statusCode != 422) return;
+    String code = '';
+    try {
+      final body = jsonDecode(resp.body);
+      if (body is Map && body['error'] != null) code = body['error'].toString();
+    } catch (_) {}
+    if (code == 'SHIPPING_NOT_AVAILABLE') {
+      throw ShippingNotAvailableException(422, msg);
+    }
+    throw CouponRejectedException(422, msg, code);
+  }
+
   // POST /api/orders/quote
   Future<Quote> quote(List<CartItem> items,
-      {int? storeId, String? token}) async {
+      {int? storeId,
+      String? token,
+      String? couponCode,
+      String? username,
+      int? addressId}) async {
     final resp = await _send(
       () => _http.post(
         _uri('/api/orders/quote'),
         headers: _headers(token: token),
         body: jsonEncode({
           if (storeId != null) 'storeId': storeId,
+          if (couponCode != null) 'couponCode': couponCode,
+          if (couponCode != null && username != null) 'username': username,
+          if (addressId != null) 'addressId': addressId,
           'items': items.map((e) => e.toOrderLine()).toList(),
         }),
       ),
@@ -593,6 +621,7 @@ class ApiClient {
       return Quote.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
     }
     final msg = _extractMessage(resp);
+    _throwIfCouponRejected(resp, msg);
     if (resp.statusCode == 409) throw ProductNotSellableException(409, msg);
     throw UnknownApiException(resp.statusCode, msg);
   }
@@ -604,6 +633,9 @@ class ApiClient {
     int? storeId,
     String? username,
     String? token,
+    String? couponCode,
+    String? shippingMethod,
+    int? addressId,
   }) async {
     final resp = await _send(
       () => _http.post(
@@ -613,6 +645,9 @@ class ApiClient {
           if (storeId != null) 'storeId': storeId,
           'orderId': orderId,
           if (username != null) 'username': username,
+          if (couponCode != null) 'couponCode': couponCode,
+          if (shippingMethod != null) 'shippingMethod': shippingMethod,
+          if (addressId != null) 'addressId': addressId,
           'items': items.map((e) => e.toOrderLine()).toList(),
         }),
       ),
@@ -621,8 +656,55 @@ class ApiClient {
       return WahaOrder.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
     }
     final msg = _extractMessage(resp);
+    _throwIfCouponRejected(resp, msg);
     if (resp.statusCode == 409) throw ProductNotSellableException(409, msg);
     throw UnknownApiException(resp.statusCode, msg);
+  }
+
+  // ---- Addresses (signed-in customers only) ---------------------------
+
+  Future<List<Address>> getAddresses(String token) async {
+    final resp = await _send(
+        () => _http.get(_uri('/api/addresses'), headers: _headers(token: token)));
+    if (resp.statusCode == 200) {
+      return (jsonDecode(resp.body) as List<dynamic>)
+          .map((e) => Address.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    if (resp.statusCode == 401) {
+      throw UnauthorizedException(401, _extractMessage(resp));
+    }
+    throw UnknownApiException(resp.statusCode, _extractMessage(resp));
+  }
+
+  Future<Address> saveAddress(String token, Address a) async {
+    final resp = await _send(() => a.id == null
+        ? _http.post(_uri('/api/addresses'),
+            headers: _headers(token: token), body: jsonEncode(a.toJson()))
+        : _http.put(_uri('/api/addresses/${a.id}'),
+            headers: _headers(token: token), body: jsonEncode(a.toJson())));
+    if (resp.statusCode == 200 || resp.statusCode == 201) {
+      return Address.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
+    }
+    if (resp.statusCode == 401) {
+      throw UnauthorizedException(401, _extractMessage(resp));
+    }
+    throw UnknownApiException(resp.statusCode, _extractMessage(resp));
+  }
+
+  Future<void> setDefaultAddress(String token, int id) async {
+    final resp = await _send(() => _http.put(
+        _uri('/api/addresses/$id/default'),
+        headers: _headers(token: token)));
+    if (resp.statusCode == 200 || resp.statusCode == 204) return;
+    throw UnknownApiException(resp.statusCode, _extractMessage(resp));
+  }
+
+  Future<void> deleteAddress(String token, int id) async {
+    final resp = await _send(() => _http.delete(_uri('/api/addresses/$id'),
+        headers: _headers(token: token)));
+    if (resp.statusCode == 200 || resp.statusCode == 204) return;
+    throw UnknownApiException(resp.statusCode, _extractMessage(resp));
   }
 
   // GET /api/orders?storeId=&page=&size= — paginated order history, newest first

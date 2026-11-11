@@ -4,6 +4,7 @@ import '../models/product.dart';
 import '../screens/browse_screen.dart';
 import '../screens/cart_screen.dart';
 import '../screens/categories_screen.dart';
+import '../screens/addresses_screen.dart';
 import '../screens/checkout_screen.dart';
 import '../screens/invoice_screen.dart';
 import '../screens/landing_screen.dart';
@@ -98,6 +99,7 @@ class Routes {
   static const storePicker = '/store-picker';
   static const invoice = '/invoice';
   static const orders = '/orders';
+  static const addresses = '/addresses';
   static const search = '/search';
   static const categories = '/categories';
 
@@ -111,6 +113,9 @@ class Routes {
   // that HTML landing-page banners (href="/screen?name=browse_screen&tag=X")
   // can navigate to catalog screens from Shopping mode without being
   // blocked by the nav guard.
+  /// Route argument marking a Settings open that came from a scanned code.
+  static const settingsByScanArg = 'scan';
+
   static const kioskAllowlist = {landing, scan, cart, checkout, invoice, pay, success,
       browse, categories, search, productDetail};
 
@@ -142,10 +147,12 @@ Route<dynamic> onGenerateRoute(RouteSettings settings) {
   // Settings is for users who hold an edit permission only, in every mode
   // (a developer needs it in Shopping mode too, to switch back). Anyone else
   // bounces to Landing, whether or not a button was shown.
-  final settingsDenied =
-      name == Routes.settings && !permissionService.canEditAnything;
+  // Opening it from a scanned `screen=settings` code is allowed for anyone.
+  final settingsOpen = permissionService.canOpenDevTools ||
+      settings.arguments == Routes.settingsByScanArg;
+  final settingsDenied = name == Routes.settings && !settingsOpen;
   final allowedInRestricted = Routes.kioskAllowlist.contains(name) ||
-      (name == Routes.settings && permissionService.canEditAnything);
+      (name == Routes.settings && settingsOpen);
 
   Widget page;
   if (settingsDenied || (isRestrictedNav && !allowedInRestricted)) {
@@ -197,6 +204,9 @@ Route<dynamic> onGenerateRoute(RouteSettings settings) {
         break;
       case Routes.orders:
         page = const OrdersScreen();
+        break;
+      case Routes.addresses:
+        page = const AddressesScreen();
         break;
       case Routes.search:
         page = const SearchScreen();

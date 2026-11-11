@@ -1130,12 +1130,6 @@ abstract class AppLocalizations {
   /// **'Close'**
   String get terminalClose;
 
-  /// No description provided for @autoSelectingIn.
-  ///
-  /// In en, this message translates to:
-  /// **'Auto-selecting in {seconds}s — tap to pay now'**
-  String autoSelectingIn(int seconds);
-
   /// No description provided for @invoiceDueLabel.
   ///
   /// In en, this message translates to:
@@ -1237,6 +1231,444 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Expires in {minutes}:{seconds}'**
   String qrPayExpiresIn(String minutes, String seconds);
+
+  /// No description provided for @couponButtonTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Coupon'**
+  String get couponButtonTooltip;
+
+  /// No description provided for @couponSheetTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Have a coupon?'**
+  String get couponSheetTitle;
+
+  /// No description provided for @couponCodeHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Coupon code'**
+  String get couponCodeHint;
+
+  /// No description provided for @couponApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply'**
+  String get couponApply;
+
+  /// No description provided for @couponRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove coupon'**
+  String get couponRemove;
+
+  /// No description provided for @couponRowLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Coupon'**
+  String get couponRowLabel;
+
+  /// No description provided for @couponAppliedMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Coupon applied'**
+  String get couponAppliedMessage;
+
+  /// No description provided for @clearCartTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear cart'**
+  String get clearCartTooltip;
+
+  /// No description provided for @couponErrNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'This coupon code is not valid.'**
+  String get couponErrNotFound;
+
+  /// No description provided for @couponErrDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'This coupon is not active.'**
+  String get couponErrDisabled;
+
+  /// No description provided for @couponErrNotYetValid.
+  ///
+  /// In en, this message translates to:
+  /// **'This coupon is not valid yet.'**
+  String get couponErrNotYetValid;
+
+  /// No description provided for @couponErrExpired.
+  ///
+  /// In en, this message translates to:
+  /// **'This coupon has expired.'**
+  String get couponErrExpired;
+
+  /// No description provided for @couponErrWrongStore.
+  ///
+  /// In en, this message translates to:
+  /// **'This coupon is not valid in this store.'**
+  String get couponErrWrongStore;
+
+  /// No description provided for @couponErrUsageLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'This coupon has reached its usage limit.'**
+  String get couponErrUsageLimit;
+
+  /// No description provided for @couponErrUserLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'You have already used this coupon the maximum number of times.'**
+  String get couponErrUserLimit;
+
+  /// No description provided for @couponErrAmountExhausted.
+  ///
+  /// In en, this message translates to:
+  /// **'This coupon has no discount left.'**
+  String get couponErrAmountExhausted;
+
+  /// No description provided for @couponErrMinimumOrder.
+  ///
+  /// In en, this message translates to:
+  /// **'Your cart is below the minimum amount for this coupon.'**
+  String get couponErrMinimumOrder;
+
+  /// No description provided for @couponErrNotCombinable.
+  ///
+  /// In en, this message translates to:
+  /// **'This coupon cannot be combined with the offers already applied.'**
+  String get couponErrNotCombinable;
+
+  /// No description provided for @couponErrNotApplicable.
+  ///
+  /// In en, this message translates to:
+  /// **'No item in your cart qualifies for this coupon.'**
+  String get couponErrNotApplicable;
+
+  /// No description provided for @couponErrTotalNotPositive.
+  ///
+  /// In en, this message translates to:
+  /// **'The total after the coupon must be more than zero.'**
+  String get couponErrTotalNotPositive;
+
+  /// No description provided for @couponErrGeneric.
+  ///
+  /// In en, this message translates to:
+  /// **'The coupon could not be applied.'**
+  String get couponErrGeneric;
+
+  /// No description provided for @priceIncVat.
+  ///
+  /// In en, this message translates to:
+  /// **'inc VAT'**
+  String get priceIncVat;
+
+  /// No description provided for @priceExcVat.
+  ///
+  /// In en, this message translates to:
+  /// **'exc VAT'**
+  String get priceExcVat;
+
+  /// No description provided for @couponScanTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan coupon code'**
+  String get couponScanTitle;
+
+  /// No description provided for @couponScanTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan with camera'**
+  String get couponScanTooltip;
+
+  /// No description provided for @cartCheckoutButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Checkout'**
+  String get cartCheckoutButton;
+
+  /// No description provided for @checkoutTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Checkout'**
+  String get checkoutTitle;
+
+  /// No description provided for @checkoutDeliveryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delivery method'**
+  String get checkoutDeliveryTitle;
+
+  /// No description provided for @shipPickup.
+  ///
+  /// In en, this message translates to:
+  /// **'Pickup'**
+  String get shipPickup;
+
+  /// No description provided for @shipPickupHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Collect your order at the branch'**
+  String get shipPickupHint;
+
+  /// No description provided for @shipFree.
+  ///
+  /// In en, this message translates to:
+  /// **'Free delivery'**
+  String get shipFree;
+
+  /// No description provided for @shipFreeHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Delivered to your address'**
+  String get shipFreeHint;
+
+  /// No description provided for @shipAddressRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose an address first'**
+  String get shipAddressRequired;
+
+  /// No description provided for @shipNotAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Not available for this order'**
+  String get shipNotAvailable;
+
+  /// No description provided for @shipUnavailableNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Delivery options are not available. Please sign in again.'**
+  String get shipUnavailableNotice;
+
+  /// No description provided for @shipLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Shipping'**
+  String get shipLabel;
+
+  /// No description provided for @shipFreeAmount.
+  ///
+  /// In en, this message translates to:
+  /// **'Free'**
+  String get shipFreeAmount;
+
+  /// No description provided for @checkoutAddressTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delivery address'**
+  String get checkoutAddressTitle;
+
+  /// No description provided for @checkoutNoAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'No address selected'**
+  String get checkoutNoAddress;
+
+  /// No description provided for @checkoutChangeAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Change'**
+  String get checkoutChangeAddress;
+
+  /// No description provided for @checkoutAddAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Add address'**
+  String get checkoutAddAddress;
+
+  /// No description provided for @checkoutPlaceOrder.
+  ///
+  /// In en, this message translates to:
+  /// **'Place order'**
+  String get checkoutPlaceOrder;
+
+  /// No description provided for @shipErrNotAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Delivery is not available for this address or order.'**
+  String get shipErrNotAvailable;
+
+  /// No description provided for @addressesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'My addresses'**
+  String get addressesTitle;
+
+  /// No description provided for @addressesEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'You have no saved addresses yet.'**
+  String get addressesEmpty;
+
+  /// No description provided for @addressDefaultChip.
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get addressDefaultChip;
+
+  /// No description provided for @addressMakeDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Make default'**
+  String get addressMakeDefault;
+
+  /// No description provided for @addressEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit'**
+  String get addressEdit;
+
+  /// No description provided for @addressDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get addressDelete;
+
+  /// No description provided for @addressDeleteConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this address?'**
+  String get addressDeleteConfirm;
+
+  /// No description provided for @addressNew.
+  ///
+  /// In en, this message translates to:
+  /// **'New address'**
+  String get addressNew;
+
+  /// No description provided for @addressEditTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit address'**
+  String get addressEditTitle;
+
+  /// No description provided for @addressSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get addressSave;
+
+  /// No description provided for @addressFieldLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Label (Home, Work…)'**
+  String get addressFieldLabel;
+
+  /// No description provided for @addressFieldRecipient.
+  ///
+  /// In en, this message translates to:
+  /// **'Recipient name'**
+  String get addressFieldRecipient;
+
+  /// No description provided for @addressFieldPhone.
+  ///
+  /// In en, this message translates to:
+  /// **'Phone'**
+  String get addressFieldPhone;
+
+  /// No description provided for @addressFieldBuilding.
+  ///
+  /// In en, this message translates to:
+  /// **'Building number'**
+  String get addressFieldBuilding;
+
+  /// No description provided for @addressFieldStreet.
+  ///
+  /// In en, this message translates to:
+  /// **'Street'**
+  String get addressFieldStreet;
+
+  /// No description provided for @addressFieldSecondary.
+  ///
+  /// In en, this message translates to:
+  /// **'Additional number'**
+  String get addressFieldSecondary;
+
+  /// No description provided for @addressFieldDistrict.
+  ///
+  /// In en, this message translates to:
+  /// **'District'**
+  String get addressFieldDistrict;
+
+  /// No description provided for @addressFieldCity.
+  ///
+  /// In en, this message translates to:
+  /// **'City'**
+  String get addressFieldCity;
+
+  /// No description provided for @addressFieldPostal.
+  ///
+  /// In en, this message translates to:
+  /// **'Postal code'**
+  String get addressFieldPostal;
+
+  /// No description provided for @addressFieldNotes.
+  ///
+  /// In en, this message translates to:
+  /// **'Additional information'**
+  String get addressFieldNotes;
+
+  /// No description provided for @addressFieldDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Make this my default address'**
+  String get addressFieldDefault;
+
+  /// No description provided for @addressRequiredField.
+  ///
+  /// In en, this message translates to:
+  /// **'Required'**
+  String get addressRequiredField;
+
+  /// No description provided for @addressInvalidPhone.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid phone number'**
+  String get addressInvalidPhone;
+
+  /// No description provided for @addressLimitReached.
+  ///
+  /// In en, this message translates to:
+  /// **'You have reached the maximum number of addresses.'**
+  String get addressLimitReached;
+
+  /// No description provided for @invoiceDeliveryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delivery'**
+  String get invoiceDeliveryTitle;
+
+  /// No description provided for @invoiceDeliveryAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Delivery address'**
+  String get invoiceDeliveryAddress;
+
+  /// No description provided for @commonDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get commonDelete;
+
+  /// No description provided for @sessionStartingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Starting your session…'**
+  String get sessionStartingTitle;
+
+  /// No description provided for @sessionStartingHint.
+  ///
+  /// In en, this message translates to:
+  /// **'We could not create your session yet. Trying again.'**
+  String get sessionStartingHint;
+
+  /// No description provided for @sessionRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Try now'**
+  String get sessionRetry;
 }
 
 class _AppLocalizationsDelegate

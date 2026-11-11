@@ -42,11 +42,32 @@ class SuccessScreen extends StatelessWidget {
                           ),
                         ),
                         const Divider(),
-                        if (order.discountAmount > 0)
+                        if (order.discountAmount -
+                                (order.coupon?.discountAmount ?? 0) >
+                            0)
                           ListTile(
                             title: Text(l10n.cartDiscount),
-                            trailing:
-                                Text('-${order.discountAmount.toStringAsFixed(2)}'),
+                            trailing: Text(
+                                '-${(order.discountAmount - (order.coupon?.discountAmount ?? 0)).toStringAsFixed(2)}'),
+                          ),
+                        if (order.coupon != null)
+                          ListTile(
+                            title: Text(
+                                '${l10n.couponRowLabel} (${order.coupon!.code})'),
+                            trailing: Text(
+                                '-${order.coupon!.discountAmount.toStringAsFixed(2)}'),
+                          ),
+                        if (order.shippingMethod != null)
+                          ListTile(
+                            title: Text(order.shippingMethod == 'PICKUP'
+                                ? '${l10n.shipLabel} · ${l10n.shipPickup}'
+                                : '${l10n.shipLabel} · ${l10n.shipFree}'),
+                            subtitle: order.shippingAddress == null
+                                ? null
+                                : Text(order.shippingAddress!.summary),
+                            trailing: Text(order.shippingAmount > 0
+                                ? order.shippingAmount.toStringAsFixed(2)
+                                : l10n.shipFreeAmount),
                           ),
                         ListTile(
                           title: Text(l10n.cartSubtotal),

@@ -73,20 +73,22 @@ class ConnectionSwitcher {
     final username =
         typedUser.isNotEmpty ? typedUser : (authService.username ?? '');
     final secret = credentials?.secret ?? '';
-    if (mode != BrowsingMode.shopping && (username.isEmpty || secret.isEmpty)) {
-      final what = mode == BrowsingMode.kiosk ? 'PIN' : 'password';
-      return SwitchResult.failure(
-          'login',
-          username.isEmpty
-              ? 'Enter the username and $what for the new server'
-              : 'Enter the $what for the new server');
-    }
+    // No password typed (a guest account has none): switch the server anyway,
+    // then try the token already on the device; if the new server refuses it,
+    // the app is simply signed out.
+    final keepToken = mode != BrowsingMode.shopping &&
+        (username.isEmpty || secret.isEmpty);
     final signInAs = SwitchCredentials(username, secret);
 
     // 1) Is there a Waha server there? Separate client, no token.
     final probeClient = ApiClient(baseUrl: targetUrl);
     final reachError = await probeClient.probe();
     if (reachError != null) return SwitchResult.failure('server', reachError);
+
+    if (keepToken) {
+      return _switchKeepingToken(
+          customEnabled, custom, probeClient, activeApi, order, targetUrl);
+    }
 
     // 2) Can we sign in? Same separate client; one attempt, no retry loop
     //    of our own (a wrong PIN counts toward the server's lockout).
@@ -145,6 +147,46 @@ class ConnectionSwitcher {
         : 'Back on the app default ($targetUrl)');
   }
 
+  static Future<SwitchResult> _switchKeepingToken(
+    bool customEnabled,
+    CustomConnection custom,
+    ApiClient probeClient,
+    ApiClient activeApi,
+    OrderFlowController order,
+    String targetUrl,
+  ) async {
+    final kept = authService.token;
+    AuthSession? session;
+    if (kept != null) {
+      try {
+        session = await probeClient.me(kept).timeout(const Duration(seconds: 5));
+      } catch (_) {
+        session = null; // refused or unreachable: sign out below
+      }
+    }
+
+    await storeConfigService.resetForServerChange();
+    await LocalPrefs.clearLandingCacheMeta();
+    order.reset();
+    await _record(customEnabled, custom);
+    if (kept != null && session != null) {
+      await authService.adoptKeptToken(kept, session);
+    } else {
+      await authService.resetForServerChange();
+    }
+
+    try {
+      final config = await activeApi.getConfig();
+      authService.applyConfig(config);
+      if (authService.isLoggedIn) await authService.resolveDefaultStore(activeApi);
+    } catch (_) {}
+
+    final where = customEnabled ? targetUrl : 'the app default ($targetUrl)';
+    return SwitchResult.success(kept != null && session != null
+        ? 'Connected to $where, kept the current sign-in'
+        : 'Connected to $where, signed out');
+  }
+
   static Future<void> _record(bool enabled, CustomConnection custom) =>
       AppConfig.connection.save(enabled: enabled, custom: custom);
 
@@ -158,7 +200,7 @@ class ConnectionSwitcher {
         return api.login(c!.username.trim(), c.secret,
             sessionProperties: {'mode': mode.name.toUpperCase(), ...device});
       case BrowsingMode.shopping:
-        return api.guest();
+        return api.guest(sessionProperties: {'mode': mode.name.toUpperCase()});
     }
   }
 }

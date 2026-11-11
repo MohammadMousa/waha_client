@@ -6,6 +6,7 @@ import '../screens/camera_scan_screen.dart';
 import '../services/api_exceptions.dart';
 import '../router/app_router.dart';
 import '../services/local_prefs.dart';
+import '../state/browsing_mode_service.dart';
 import '../state/locale_service.dart';
 import '../state/order_flow_controller.dart';
 import 'locale_name.dart';
@@ -35,6 +36,16 @@ Future<void> openCameraAndAddToCart(BuildContext context) async {
 /// (`HardwareScanListener`) so every scan path — camera or hardware —
 /// looks and behaves identically to the customer.
 Future<void> addScannedBarcodeToCart(BuildContext context, String barcode) async {
+  // Custom code: `screen=settings` opens Settings instead of adding a product.
+  final target = RegExp(r'^\s*screen=([A-Za-z_]+)\s*$').firstMatch(barcode);
+  if (target != null) {
+    if (target.group(1)!.toLowerCase() == 'settings') {
+      Navigator.of(context)
+          .pushNamed(Routes.settings, arguments: Routes.settingsByScanArg);
+      return;
+    }
+  }
+
   final flow = context.read<OrderFlowController>();
 
   // An order has already been placed and isn't paid yet (customer is sitting
@@ -53,6 +64,14 @@ Future<void> addScannedBarcodeToCart(BuildContext context, String barcode) async
     if (LocalPrefs.showScanSuccessToast && context.mounted) {
       final name = localeName(product.name, localeService.locale.languageCode);
       messenger.showSnackBar(SnackBar(content: Text('Added: $name')));
+    }
+    // Shopping mode: the cart is the working screen. The first scan from
+    // anywhere else brings the customer there, and later scans simply add
+    // to it — they stay until they choose to go back.
+    if (browsingModeService.mode == BrowsingMode.shopping &&
+        context.mounted &&
+        ModalRoute.of(context)?.settings.name != Routes.cart) {
+      Navigator.of(context).pushNamed(Routes.cart);
     }
   } on ProductNotFoundException {
     if (context.mounted) await showScanNotFound(context, barcode);
